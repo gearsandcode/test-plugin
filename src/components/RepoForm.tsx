@@ -1,122 +1,77 @@
-import React, { useState } from 'react';
-import { fetchRepoInfo } from '../api';
-import type { RepoInfo, BranchInfo, ApiError } from '../types';
-import RepoDetails from './RepoDetails';
+import React from 'react';
 
-const RepoForm: React.FC = () => {
-  const [org, setOrg] = useState('');
-  const [repo, setRepo] = useState('');
-  const [branch, setBranch] = useState('main');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<{
-    repo: RepoInfo;
-    branch: BranchInfo;
-  } | null>(null);
+interface RepoFormProps {
+  org: string;
+  repo: string;
+  branch: string;
+  onOrgChange: (value: string) => void;
+  onRepoChange: (value: string) => void;
+  onBranchChange: (value: string) => void;
+}
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!org.trim() || !repo.trim()) {
-      setError('Organization and repository names are required');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const data = await fetchRepoInfo(
-        org.trim(),
-        repo.trim(),
-        branch.trim() || 'main'
-      );
-      setInfo(data);
-    } catch (err) {
-      const apiError = err as ApiError;
-      setError(apiError.message);
-      parent.postMessage(
-        {
-          pluginMessage: {
-            type: 'error',
-            message: apiError.message,
-          },
-        },
-        '*'
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
+export function RepoForm({
+  org,
+  repo,
+  branch,
+  onOrgChange,
+  onRepoChange,
+  onBranchChange,
+}: RepoFormProps) {
   return (
-    <div className="p-4 max-w-lg mx-auto">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Organization
-          </label>
-          <input
-            type="text"
-            value={org}
-            onChange={(e) => setOrg(e.target.value)}
-            className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-            placeholder="e.g., microsoft"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Repository
-          </label>
-          <input
-            type="text"
-            value={repo}
-            onChange={(e) => setRepo(e.target.value)}
-            className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-            placeholder="e.g., vscode"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Branch
-          </label>
-          <input
-            type="text"
-            value={branch}
-            onChange={(e) => setBranch(e.target.value)}
-            className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-            placeholder="main"
-          />
-          <p className="mt-1 text-sm text-gray-500">
-            Defaults to 'main' if left empty
-          </p>
-        </div>
-
-        <button
-          type="submit"
-          disabled={loading}
-          className={`w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
-            loading ? 'opacity-50 cursor-not-allowed' : ''
-          }`}
+    <div className="space-y-4 mb-6">
+      <div>
+        <label
+          htmlFor="org"
+          className="block text-sm font-medium text-gray-700"
         >
-          {loading ? (
-            <span className="flex items-center justify-center">Loading...</span>
-          ) : (
-            'Get Repository Info'
-          )}
-        </button>
+          Organization
+        </label>
+        <input
+          id="org"
+          type="text"
+          value={org}
+          onChange={(e) => onOrgChange(e.target.value)}
+          className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm shadow-sm placeholder-gray-400
+                   focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          placeholder="e.g., microsoft"
+        />
+      </div>
 
-        {error && (
-          <div className="p-3 rounded-md bg-red-50 text-red-700 text-sm">
-            {error}
-          </div>
-        )}
+      <div>
+        <label
+          htmlFor="repo"
+          className="block text-sm font-medium text-gray-700"
+        >
+          Repository
+        </label>
+        <input
+          id="repo"
+          type="text"
+          value={repo}
+          onChange={(e) => onRepoChange(e.target.value)}
+          className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm shadow-sm placeholder-gray-400
+                   focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          placeholder="e.g., vscode"
+        />
+      </div>
 
-        {info && <RepoDetails repo={info.repo} branch={info.branch} />}
-      </form>
+      <div>
+        <label
+          htmlFor="branch"
+          className="block text-sm font-medium text-gray-700"
+        >
+          Branch
+        </label>
+        <input
+          id="branch"
+          type="text"
+          value={branch}
+          onChange={(e) => onBranchChange(e.target.value)}
+          className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm shadow-sm placeholder-gray-400
+                   focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          placeholder="main"
+        />
+      </div>
     </div>
   );
-};
-
-export default RepoForm;
+}

@@ -1,13 +1,20 @@
 {
   "name": "GitHub Repository Info",
-  "id": "github-repository-info",
+  "id": "1435806589166136976",
+  "documentAccess": "dynamic-page",
   "api": "1.0.0",
   "main": "dist/code.js",
   "ui": "dist/index.html",
   "editorType": ["figma"],
   "networkAccess": {
-    "allowedDomains": ["https://api.github.com"],
-    "devAllowedDomains": ["https://api.github.com"]
+    "allowedDomains": [
+      "https://api.github.com",
+      "https://github.com"
+    ],
+    "devAllowedDomains": [
+      "https://api.github.com",
+      "https://github.com"
+    ]
   },
   "permissions": ["currentuser"]
 }
