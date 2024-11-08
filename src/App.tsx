@@ -102,14 +102,6 @@ function App(): JSX.Element {
           setError(message.message);
           setLoading(false);
           break;
-
-        case 'show-pat-input':
-          setShowPATInput(true);
-          setAuth((prev) => ({
-            ...prev,
-            loading: false,
-          }));
-          break;
       }
     }
 
@@ -276,6 +268,9 @@ function App(): JSX.Element {
                 onCommitMessageChange={setCommitMessage}
                 onSubmit={handleCommit}
                 commitSuccess={commitSuccess}
+                org={''}
+                repo={''}
+                branch={''}
               />
             )}
           </>

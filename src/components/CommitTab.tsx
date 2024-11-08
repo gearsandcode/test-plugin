@@ -4,6 +4,9 @@ import type { GitHubAuthState } from '../types';
 interface CommitTabProps {
   loading: boolean;
   authStatus: GitHubAuthState;
+  org: string;
+  repo: string;
+  branch: string;
   filePath: string;
   fileContent: string;
   commitMessage: string;
@@ -17,6 +20,9 @@ interface CommitTabProps {
 export function CommitTab({
   loading,
   authStatus,
+  org,
+  repo,
+  branch,
   filePath,
   fileContent,
   commitMessage,
@@ -43,7 +49,7 @@ export function CommitTab({
             onChange={(e) => onFilePathChange(e.target.value)}
             className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm shadow-sm placeholder-gray-400
                      focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-            placeholder="path/to/file.txt"
+            placeholder="path/to/file.json"
           />
         </div>
 
@@ -79,7 +85,7 @@ export function CommitTab({
             onChange={(e) => onCommitMessageChange(e.target.value)}
             className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm shadow-sm placeholder-gray-400
                      focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-            placeholder="Enter commit message"
+            placeholder="Update design from Figma"
           />
         </div>
       </div>
@@ -88,7 +94,9 @@ export function CommitTab({
         type="submit"
         disabled={
           loading ||
-          !authStatus.token ||
+          !authStatus?.token ||
+          !org ||
+          !repo ||
           !filePath ||
           !fileContent ||
           !commitMessage
@@ -97,7 +105,7 @@ export function CommitTab({
                  bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500
                  disabled:bg-gray-400 disabled:cursor-not-allowed"
       >
-        {loading ? 'Creating Commit...' : 'Create Commit'}
+        {loading ? 'Creating PR...' : 'Create Pull Request'}
       </button>
 
       {commitSuccess && (
@@ -118,8 +126,15 @@ export function CommitTab({
             </div>
             <div className="ml-3">
               <p className="text-sm font-medium text-green-800">
-                Commit created successfully! SHA:{' '}
-                {commitSuccess.sha.substring(0, 7)}
+                Commit created successfully!{' '}
+                <a
+                  href={commitSuccess.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline hover:text-green-900"
+                >
+                  View changes (SHA: {commitSuccess.sha.substring(0, 7)})
+                </a>
               </p>
             </div>
           </div>

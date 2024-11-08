@@ -1,3 +1,23 @@
+export interface GithubConfig {
+  token: string;
+  clientId: string;
+  redirectUri: string;
+  apiUrl: string;
+}
+
+export interface CreatePRParams {
+  owner: string;
+  repo: string;
+  path: string;
+  content: string;
+  message: string;
+}
+
+export interface PRResponse {
+  html_url: string;
+  number: number;
+}
+
 export interface RepoInfo {
   full_name: string;
   description: string | null;
@@ -79,24 +99,17 @@ export type PluginMessage =
       auth: GitHubAuthState;
     }
   | { type: 'initiate-github-auth' }
-  | { type: 'oauth-callback'; code: string; state: string }
-  | { type: 'logout' }
-  | { type: 'repo-info'; data: RepoData }
-  | {
-      type: 'auth-success';
-      token: string;
-      expiresAt: string;
-      authType: 'app' | 'user';
-    }
-  | { type: 'auth-error'; error: string }
-  | { type: 'commit-success'; data: { sha: string; url: string } }
-  | { type: 'error'; message: string }
   | {
       type: 'show-device-code';
       data: { userCode: string; verificationUrl: string };
     }
-  | { type: 'show-pat-input' }
-  | { type: 'submit-pat'; token: string };
+  | { type: 'auth-success'; token: string; expiresAt: string; authType: 'user' }
+  | { type: 'auth-error'; error: string }
+  | { type: 'commit-success'; data: { sha: string; url: string } }
+  | { type: 'error'; message: string }
+  | { type: 'logout' }
+  | { type: 'repo-info'; data: RepoData };
+
 // Helper type for UI message handling
 export type UIMessage = Extract<
   PluginMessage,
@@ -141,12 +154,6 @@ export interface GitHubAuthState {
 export interface RepoData {
   repo: RepoInfo;
   branch: BranchInfo;
-}
-
-export interface GitHubConfig {
-  clientId: string;
-  redirectUri: string;
-  apiUrl: string;
 }
 
 export interface GitHubOAuthResponse {

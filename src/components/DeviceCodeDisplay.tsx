@@ -1,3 +1,5 @@
+import React from 'react';
+
 interface DeviceCodeDisplayProps {
   userCode: string;
   verificationUrl: string;
@@ -14,7 +16,7 @@ export function DeviceCodeDisplay({
       </h2>
 
       <p className="text-sm text-gray-600 mb-4">
-        To connect your GitHub account, visit:
+        Your browser should open automatically to GitHub. If it doesn't, visit:
       </p>
 
       <a
@@ -26,24 +28,15 @@ export function DeviceCodeDisplay({
         {verificationUrl}
       </a>
 
-      <p className="text-sm text-gray-600 mb-2">And enter the code:</p>
+      <p className="text-sm text-gray-600 mb-2">And enter this code:</p>
 
       <div className="bg-gray-100 p-4 rounded-md text-center mb-4">
-        <code className="text-lg font-mono font-bold text-gray-800">
+        <code className="text-xl font-mono font-bold tracking-wide text-gray-800">
           {userCode}
         </code>
       </div>
 
-      <button
-        onClick={() => {
-          window.open(verificationUrl, '_blank');
-        }}
-        className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-      >
-        Open GitHub
-      </button>
-
-      <p className="mt-4 text-xs text-gray-500 text-center">
+      <p className="text-sm text-gray-500 text-center">
         Waiting for authentication... You can close this window after
         authorizing on GitHub.
       </p>
