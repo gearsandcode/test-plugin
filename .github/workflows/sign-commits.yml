@@ -3,9 +3,7 @@ on:
   pull_request:
     types: [opened, synchronize]
     paths:
-      - '**.json' # Adjust based on your file patterns
-    labels:
-      - 'figma-plugin'
+      - "**.json" # Adjust based on your file patterns
 
 jobs:
   sign-commits:
