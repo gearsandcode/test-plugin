@@ -320,12 +320,11 @@ const CommitForm: React.FC<Props> = ({ settings }) => {
     as?: "input" | "textarea" | "select";
   }) => {
     const baseClasses = `
-      w-full px-2 py-1.5 
-      border rounded-sm 
+      w-full px-2 py-1.5
+      border rounded-sm  text-sm
       focus:outline-none focus:border-blue-500
       transition-colors
-      text-sm
-      bg-white border-black/10 hover:border-black/30
+      appearance-none
     `;
 
     if (as === "select") {
@@ -333,30 +332,47 @@ const CommitForm: React.FC<Props> = ({ settings }) => {
         <div className="space-y-1">
           <label className="text-xs flex items-center justify-between">
             {label}
-            {branchesLoading && (
-              <span className="text-black/30">Loading...</span>
-            )}
+            {branchesLoading && <span className="opacity-50">Loading...</span>}
           </label>
-          <select
-            name={name}
-            className={baseClasses}
-            value={formData[name]}
-            onChange={handleInputChange}
-            required={required}
-            disabled={branchesLoading}
-          >
-            {branches.length === 0 ? (
-              <option value="">
-                {branchesLoading ? "Loading branches..." : "No branches found"}
-              </option>
-            ) : (
-              branches.map((branch) => (
-                <option key={branch} value={branch}>
-                  {branch}
+          <div className="relative">
+            <select
+              name={name}
+              className={baseClasses}
+              value={formData[name]}
+              onChange={handleInputChange}
+              required={required}
+              disabled={branchesLoading}
+            >
+              {branches.length === 0 ? (
+                <option value="">
+                  {branchesLoading
+                    ? "Loading branches..."
+                    : "No branches found"}
                 </option>
-              ))
-            )}
-          </select>
+              ) : (
+                branches.map((branch) => (
+                  <option key={branch} value={branch}>
+                    {branch}
+                  </option>
+                ))
+              )}
+            </select>
+            <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+              <svg
+                className="h-4 w-4 opacity-50"
+                fill="none"
+                viewBox="0 0 16 16"
+              >
+                <path
+                  d="M4 6L8 10L12 6"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </div>
+          </div>
         </div>
       );
     }
@@ -366,7 +382,7 @@ const CommitForm: React.FC<Props> = ({ settings }) => {
         <div className="space-y-1">
           <label className="text-xs">
             {label}
-            {!required && <span className="text-black/30 ml-2">Optional</span>}
+            {!required && <span className="opacity-50 ml-2">Optional</span>}
           </label>
           <textarea
             name={name}
@@ -385,7 +401,7 @@ const CommitForm: React.FC<Props> = ({ settings }) => {
       <div className="space-y-1">
         <label className="text-xs">
           {label}
-          {!required && <span className="text-black/30 ml-2">Optional</span>}
+          {!required && <span className="opacity-50 ml-2">Optional</span>}
         </label>
         <input
           type={type}
@@ -401,16 +417,16 @@ const CommitForm: React.FC<Props> = ({ settings }) => {
   };
 
   return (
-    <div className="min-h-screen bg-white text-black p-4 pb-6">
+    <div className="p-4">
       <div>
         <h1 className="text-base font-medium">Create GitHub Commit</h1>
-        <p className="text-xs text-black/50">
+        <p className="text-xs opacity-50">
           Commit files directly to your GitHub repository
         </p>
       </div>
 
       {error && (
-        <div className="p-3 mt-6 bg-red-50 border border-red-100 rounded-sm">
+        <div className="p-3 mt-6 bg-red-50 rounded-sm">
           <div className="flex">
             <div className="ml-2">
               <p className="text-xs text-red-600">{error}</p>
@@ -436,18 +452,18 @@ const CommitForm: React.FC<Props> = ({ settings }) => {
 
         <button
           type="submit"
-          className={`
-            w-full py-1.5 px-3 
-            rounded-sm text-white
-            transition-colors duration-200 text-xs
-            ${
-              loading
-                ? "bg-blue-400 cursor-not-allowed"
-                : "bg-blue-500 hover:bg-blue-600 active:bg-blue-700"
-            }
-            flex items-center justify-center space-x-2
-          `}
           disabled={loading}
+          className={`
+          w-full py-1.5 px-3 
+          rounded-sm text-sm text-white
+          transition-colors
+          ${
+            loading
+              ? "bg-blue-400 cursor-not-allowed"
+              : "bg-blue-500 hover:bg-blue-600 active:bg-blue-700"
+          }
+          flex items-center justify-center space-x-2
+        `}
         >
           {loading ? (
             <>

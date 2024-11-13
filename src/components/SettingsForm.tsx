@@ -1,10 +1,22 @@
 import React, { useState, FormEvent, ChangeEvent, memo } from "react";
-import type { StoredSettings } from "../PluginStore.js";
+
+interface Settings {
+  token: string;
+  organization: string;
+  repository: string;
+  label: string;
+}
 
 interface Props {
-  initialSettings: StoredSettings | null;
-  onSave: (settings: StoredSettings) => void;
+  initialSettings: Settings | null;
+  onSave: (settings: Settings) => void;
 }
+
+const DEFAULT_VALUES = {
+  organization: "gearsandcode",
+  repository: "docs",
+  label: "figma-plugin",
+};
 
 const FormInput = memo(
   ({
@@ -25,7 +37,8 @@ const FormInput = memo(
       <input
         type={type}
         name={name}
-        className="w-full px-2 py-1.5 text-sm border rounded-sm border-black/10 hover:border-black/30 focus:border-blue-500 focus:outline-none transition-colors"
+        className="w-full px-2 py-1.5 border rounded-sm text-sm
+          hover:border-black/30 focus:border-blue-500 focus:outline-none transition-colors"
         value={value}
         onChange={onChange}
         required
@@ -37,12 +50,11 @@ const FormInput = memo(
 FormInput.displayName = "FormInput";
 
 const SettingsForm: React.FC<Props> = ({ initialSettings, onSave }) => {
-  const [formData, setFormData] = useState<StoredSettings>({
+  const [formData, setFormData] = useState<Settings>({
     token: initialSettings?.token || "",
-    organization: initialSettings?.organization || "gearsandcode",
-    repository: initialSettings?.repository || "docs",
-    label: initialSettings?.label || "figma-plugin",
-    commitData: initialSettings?.commitData, // Preserve commitData
+    organization: initialSettings?.organization || DEFAULT_VALUES.organization,
+    repository: initialSettings?.repository || DEFAULT_VALUES.repository,
+    label: initialSettings?.label || DEFAULT_VALUES.label,
   });
   const [loading, setLoading] = useState(false);
 
@@ -58,31 +70,60 @@ const SettingsForm: React.FC<Props> = ({ initialSettings, onSave }) => {
     e.preventDefault();
     setLoading(true);
 
-    // Preserve the existing commitData when saving
-    const settingsToSave = {
-      ...formData,
-      commitData: initialSettings?.commitData || formData.commitData,
-    };
-
     parent.postMessage(
       {
         pluginMessage: {
           type: "save-settings",
-          settings: settingsToSave,
+          settings: formData,
         },
       },
       "*"
     );
 
-    onSave(settingsToSave);
+    onSave(formData);
     setLoading(false);
+  };
+
+  const handleClear = () => {
+    if (window.confirm("Are you sure you want to clear all settings?")) {
+      const emptySettings = {
+        token: "",
+        organization: "",
+        repository: "",
+        label: "",
+      };
+
+      setFormData(emptySettings);
+
+      parent.postMessage(
+        {
+          pluginMessage: {
+            type: "save-settings",
+            settings: emptySettings,
+          },
+        },
+        "*"
+      );
+
+      onSave(emptySettings);
+    }
+  };
+
+  const handleUseDefaults = () => {
+    const defaultSettings = {
+      ...formData,
+      organization: DEFAULT_VALUES.organization,
+      repository: DEFAULT_VALUES.repository,
+      label: DEFAULT_VALUES.label,
+    };
+    setFormData(defaultSettings);
   };
 
   return (
     <div className="p-4">
       <div>
         <h1 className="text-base font-medium">GitHub Settings</h1>
-        <p className="text-xs text-black/50 mt-1">
+        <p className="text-xs opacity-50 mt-1">
           Configure your GitHub repository settings
         </p>
       </div>
@@ -95,31 +136,47 @@ const SettingsForm: React.FC<Props> = ({ initialSettings, onSave }) => {
           value={formData.token}
           onChange={handleChange}
         />
-        <FormInput
-          label="ORGANIZATION/USER"
-          name="organization"
-          value={formData.organization}
-          onChange={handleChange}
-        />
-        <FormInput
-          label="REPOSITORY"
-          name="repository"
-          value={formData.repository}
-          onChange={handleChange}
-        />
-        <FormInput
-          label="DEFAULT LABEL"
-          name="label"
-          value={formData.label}
-          onChange={handleChange}
-        />
+        <div className="space-y-4">
+          <FormInput
+            label="ORGANIZATION/USER"
+            name="organization"
+            value={formData.organization}
+            onChange={handleChange}
+          />
+          <FormInput
+            label="REPOSITORY"
+            name="repository"
+            value={formData.repository}
+            onChange={handleChange}
+          />
+          <FormInput
+            label="DEFAULT LABEL"
+            name="label"
+            value={formData.label}
+            onChange={handleChange}
+          />
 
-        <button
-          type="submit"
-          disabled={loading}
-          className={`
-            w-full py-1.5 px-3 mt-4
-            rounded-sm text-white text-xs
+          <button
+            type="button"
+            onClick={handleUseDefaults}
+            className="
+              text-sm
+              text-blue-500 hover:text-blue-600
+              flex items-center
+              transition-colors
+            "
+          >
+            Use default values
+          </button>
+        </div>
+
+        <div className="flex space-x-2 pt-2">
+          <button
+            type="submit"
+            disabled={loading}
+            className={`
+            flex-1 py-1.5 px-3
+            rounded-sm text-sm text-white
             transition-colors
             ${
               loading
@@ -127,9 +184,24 @@ const SettingsForm: React.FC<Props> = ({ initialSettings, onSave }) => {
                 : "bg-blue-500 hover:bg-blue-600 active:bg-blue-700"
             }
           `}
-        >
-          {loading ? "Saving..." : "Save Settings"}
-        </button>
+          >
+            {loading ? "Saving..." : "Save Settings"}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleClear}
+            className="
+            py-1.5 px-3
+            rounded-sm text-sm
+            text-red-500 hover:text-red-600 active:text-red-700
+            border border-red-500 hover:border-red-600 active:border-red-700
+            transition-colors
+          "
+          >
+            Clear Settings
+          </button>
+        </div>
       </form>
     </div>
   );

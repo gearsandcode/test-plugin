@@ -3,7 +3,6 @@ import {
   saveSettings,
   loadSettings,
   type StoredSettings,
-  CommitData,
 } from "./PluginStore.js";
 
 const pluginDefaultWidth = 500;
