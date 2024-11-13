@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from "react";
 // todo - troubleshoot - see: https://github.com/phosphor-icons/react/issues/96
 import { GithubLogo } from "@phosphor-icons/react/GithubLogo";
-import CommitForm from "./components/CommitForm.js";
-import SettingsForm from "./components/SettingsForm.js";
-import type { StoredSettings } from "./PluginStore.js";
-import ResizeHandle from "./components/ResizableCorner.js";
+import CommitForm from "./components/CommitForm";
+import SettingsForm from "./components/SettingsForm";
+import type { StoredSettings } from "./PluginStore";
+import ResizeHandle from "./components/ResizableCorner";
 
 interface TabButtonProps {
   label: string;

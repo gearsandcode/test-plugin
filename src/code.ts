@@ -1,9 +1,5 @@
 /// <reference types="@figma/plugin-typings" />
-import {
-  saveSettings,
-  loadSettings,
-  type StoredSettings,
-} from "./PluginStore.js";
+import { saveSettings, loadSettings, type StoredSettings } from "./PluginStore";
 
 const pluginDefaultWidth = 500;
 const pluginDefaultHeight = 600;
