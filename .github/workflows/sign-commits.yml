@@ -5,45 +5,53 @@ on:
     types: [opened, labeled, synchronize]
 
 jobs:
+  check-commit:
+    runs-on: ubuntu-latest
+    outputs:
+      should_sign: ${{ steps.check.outputs.should_sign }}
+    steps:
+      - id: check
+        env:
+          PR_SHA: ${{ github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get the commit info
+          response=$(curl -sL \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            https://api.github.com/repos/${{ github.repository }}/commits/$PR_SHA)
+
+          committer_email=$(echo "$response" | jq -r '.commit.committer.email')
+          committer_name=$(echo "$response" | jq -r '.commit.committer.name')
+
+          echo "Committer: $committer_name <$committer_email>"
+
+          if [[ "$committer_name" == *"[bot]"* ]]; then
+            echo "should_sign=false" >> $GITHUB_OUTPUT
+            echo "Commit is already from a bot, skipping"
+          else
+            echo "should_sign=true" >> $GITHUB_OUTPUT
+            echo "Commit needs signing"
+          fi
+
   sign-commits:
-    # Check both the label and that the commit isn't already signed by our bot
+    needs: check-commit
     if: |
-      contains(github.event.pull_request.labels.*.name, 'figma-plugin') && !endsWith(github.event.pull_request.head.sha.committer.email, '+${{ vars.APP_SLUG }}[bot]@users.noreply.github.com')
+      needs.check-commit.outputs.should_sign == 'true' &&
+      contains(github.event.pull_request.labels.*.name, 'figma-plugin')
     runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
 
     steps:
-      - name: Check commit author
-        id: check_author
-        run: |
-          # Get the commit info
-          response=$(curl -L \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            https://api.github.com/repos/${{ github.repository }}/commits/${{ github.event.pull_request.head.sha }})
-
-          committer_email=$(echo "$response" | jq -r '.commit.committer.email')
-          expected_bot_email="${{ vars.APP_ID }}+${{ vars.APP_SLUG }}[bot]@users.noreply.github.com"
-
-          if [ "$committer_email" = "$expected_bot_email" ]; then
-            echo "Commit is already signed by our bot, skipping"
-            exit 0
-          fi
-
-          echo "SHOULD_SIGN=true" >> $GITHUB_OUTPUT
-
       - uses: actions/checkout@v4
-        if: steps.check_author.outputs.SHOULD_SIGN == 'true'
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
           ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Generate App Token
-        if: steps.check_author.outputs.SHOULD_SIGN == 'true'
         id: generate_token
         uses: actions/create-github-app-token@v1
         with:
@@ -53,13 +61,11 @@ jobs:
           repositories: ${{ github.event.repository.name }}
 
       - name: Configure Git
-        if: steps.check_author.outputs.SHOULD_SIGN == 'true'
         run: |
           git config --global user.name "${{ vars.APP_SLUG }}[bot]"
           git config --global user.email "${{ vars.APP_ID }}+${{ vars.APP_SLUG }}[bot]@users.noreply.github.com"
 
       - name: Sign Latest Commit
-        if: steps.check_author.outputs.SHOULD_SIGN == 'true'
         env:
           GH_TOKEN: ${{ steps.generate_token.outputs.token }}
         run: |
