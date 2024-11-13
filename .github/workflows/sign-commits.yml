@@ -1,4 +1,4 @@
-name: Auto Sign PR Commit
+name: Auto Sign PR Commits
 
 on:
   pull_request:
@@ -25,7 +25,11 @@ jobs:
           app-id: ${{ vars.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
-          repository: ${{ github.repository }}
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "${{ github.event.pull_request.user.login }}"
+          git config --global user.email "${{ github.event.pull_request.user.login }}@users.noreply.github.com"
 
       - name: Recommit with Original Authors
         env:
@@ -34,6 +38,7 @@ jobs:
           # Debug info
           echo "Base ref: ${{ github.base_ref }}"
           echo "Head SHA: ${{ github.event.pull_request.head.sha }}"
+          echo "PR Author: ${{ github.event.pull_request.user.login }}"
 
           # Ensure we have the base branch
           git fetch origin ${{ github.base_ref }}
