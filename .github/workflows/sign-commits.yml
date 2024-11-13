@@ -1,4 +1,4 @@
-name: Auto Sign PR Commits
+name: Auto Sign PR Commit
 
 on:
   pull_request:
