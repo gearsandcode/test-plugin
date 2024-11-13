@@ -25,91 +25,48 @@ jobs:
           app-id: ${{ vars.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
-          repository: ${{ github.repository }}
+
+      - name: Get App Info
+        id: app_info
+        run: |
+          response=$(curl -s \
+            -H "Authorization: Bearer ${{ steps.generate_token.outputs.token }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/app")
+
+          app_name=$(echo "$response" | jq -r '.name | gsub(" "; "-") | ascii_downcase')
+          echo "APP_NAME=$app_name" >> $GITHUB_OUTPUT
+          echo "Found app name: $app_name"
 
       - name: Configure Git
         env:
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
-          PR_AUTHOR_ID: ${{ github.event.pull_request.user.id }}
         run: |
-          git config --global user.name "Figma Bot[bot]"
-          git config --global user.email "${{ vars.APP_ID }}+figma-bot[bot]@users.noreply.github.com"
-          # Store PR author info for later use
-          git config --global figma.prauthor "${PR_AUTHOR}"
-          git config --global figma.prauthorid "${PR_AUTHOR_ID}"
+          git config --global user.name "${{ steps.app_info.outputs.APP_NAME }}[bot]"
+          git config --global user.email "${{ vars.APP_ID }}+${{ steps.app_info.outputs.APP_NAME }}[bot]@users.noreply.github.com"
 
       - name: Recommit with Original Authors
         env:
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
-          PR_AUTHOR_ID: ${{ github.event.pull_request.user.id }}
         run: |
-          # Debug info
-          echo "Base ref: ${{ github.base_ref }}"
-          echo "Head SHA: ${{ github.event.pull_request.head.sha }}"
-          echo "PR Author: ${PR_AUTHOR} (${PR_AUTHOR_ID})"
+          # Create a temporary branch
+          git checkout -b temp-branch
 
-          # Ensure we have the base branch
-          git fetch origin ${{ github.base_ref }}
+          # Reset to target commit
+          git reset --hard ${{ github.event.pull_request.head.sha }}
 
-          # Get all commits in the PR
-          commits=$(git rev-list --reverse origin/${{ github.base_ref }}..${{ github.event.pull_request.head.sha }})
+          # Amend the commit to be signed by the bot while preserving author
+          author_name=$(git log -1 --format="%an")
+          author_email=$(git log -1 --format="%ae")
+          author_date=$(git log -1 --format=%aI)
+          commit_msg=$(git log -1 --format=%B)
 
-          if [ -z "$commits" ]; then
-            echo "No commits found to process"
-            exit 1
-          fi
-
-          echo "Found commits to process:"
-          echo "$commits"
-
-          # Create a temporary branch from base
-          git checkout -b temp-branch origin/${{ github.base_ref }}
-
-          # Process each commit
-          for commit in $commits; do
-            echo "Processing commit: $commit"
-            
-            # Get the original commit info
-            author_name=$(git log -1 --format="%an" $commit)
-            author_email=$(git log -1 --format="%ae" $commit)
-            message=$(git log -1 --format=%B $commit)
-            date=$(git log -1 --format=%ad $commit)
-            
-            echo "Author: $author_name <$author_email>"
-            echo "Message: $message"
-            
-            # Get the tree from the original commit
-            tree=$(git log -1 --format=%T $commit)
-            
-            # Append PR author information to commit message
-            extended_message="${message} On-behalf-of: @${PR_AUTHOR} <${PR_AUTHOR}@users.noreply.github.com>"
-            
-            # Create a new commit with the same tree and original author
-            # but signed by the GitHub App as committer
-            GIT_AUTHOR_NAME="$author_name" \
-            GIT_AUTHOR_EMAIL="$author_email" \
-            GIT_AUTHOR_DATE="$date" \
-            git commit --allow-empty \
-                -m "$extended_message"
-            
-            # Set the tree to match the original commit
-            git_tree_hash=$(git rev-parse HEAD^{tree})
-            if [ "$git_tree_hash" != "$tree" ]; then
-              git read-tree $tree
-              GIT_AUTHOR_NAME="$author_name" \
-              GIT_AUTHOR_EMAIL="$author_email" \
-              GIT_AUTHOR_DATE="$date" \
-              git commit --amend --no-edit --allow-empty
-            fi
-          done
-
-          echo "All commits processed, pushing changes"
+          # Amend the commit
+          GIT_AUTHOR_NAME="$author_name" \
+          GIT_AUTHOR_EMAIL="$author_email" \
+          GIT_AUTHOR_DATE="$author_date" \
+          git commit --amend --no-edit
 
           # Force push back to the PR branch
-          if ! git push --force origin temp-branch:${{ github.event.pull_request.head.ref }}; then
-            echo "Failed to push changes"
-            exit 1
-          fi
-
-          echo "Successfully pushed changes"
+          git push --force origin temp-branch:${{ github.event.pull_request.head.ref }}
