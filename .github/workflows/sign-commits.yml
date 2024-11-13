@@ -18,23 +18,31 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.ref }}
 
-      - name: Generate JWT
-        id: generate_jwt
+      - name: Generate App Token
+        id: generate_token
         uses: actions/create-github-app-token@v1
         with:
           app-id: ${{ vars.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
+          repository: ${{ github.repository }}
+
+      - name: Generate JWT
+        id: generate_jwt
+        uses: tibdex/github-app-token@v2
+        with:
+          app_id: ${{ vars.APP_ID }}
+          private_key: ${{ secrets.APP_PRIVATE_KEY }}
 
       - name: Get App Info
         id: app_info
         run: |
           response=$(curl -s \
-            -H "Accept: application/vnd.github.v3+json" \
             -H "Authorization: Bearer ${{ steps.generate_jwt.outputs.token }}" \
-            "https://api.github.com/app/installations/${{ github.event.installation.id }}")
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/app")
 
-          app_slug=$(echo "$response" | jq -r '.app_slug')
+          app_slug=$(echo "$response" | jq -r '.slug')
           echo "APP_SLUG=$app_slug" >> $GITHUB_OUTPUT
           echo "Found app slug: $app_slug"
 
@@ -47,7 +55,7 @@ jobs:
 
       - name: Recommit with Original Authors
         env:
-          GITHUB_TOKEN: ${{ steps.generate_jwt.outputs.token }}
+          GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
           # Create a temporary branch
