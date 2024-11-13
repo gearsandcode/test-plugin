@@ -6,6 +6,8 @@ on:
 
 jobs:
   check-commit:
+    # Check label first
+    if: contains(github.event.pull_request.labels.*.name, 'figma-plugin')
     runs-on: ubuntu-latest
     outputs:
       should_sign: ${{ steps.check.outputs.should_sign }}
@@ -36,9 +38,7 @@ jobs:
 
   sign-commits:
     needs: check-commit
-    if: |
-      needs.check-commit.outputs.should_sign == 'true' &&
-      contains(github.event.pull_request.labels.*.name, 'figma-plugin')
+    if: needs.check-commit.outputs.should_sign == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -77,35 +77,4 @@ jobs:
           # Create the commit using the GitHub API
           response=$(curl -L \
             -X POST \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            https://api.github.com/repos/${{ github.repository }}/git/commits \
-            -d "{
-              \"message\":\"$commit_msg\",
-              \"tree\":\"$tree_hash\",
-              \"parents\":[\"$parent_hash\"]
-            }")
-
-          # Extract the new commit SHA
-          new_commit_sha=$(echo "$response" | jq -r '.sha')
-
-          if [ -z "$new_commit_sha" ] || [ "$new_commit_sha" = "null" ]; then
-            echo "Failed to get new commit SHA"
-            echo "API Response: $response"
-            exit 1
-          fi
-
-          echo "Created new commit: $new_commit_sha"
-
-          # Update the branch reference using the API
-          curl -L \
-            -X PATCH \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            https://api.github.com/repos/${{ github.repository }}/git/refs/heads/${{ github.event.pull_request.head.ref }} \
-            -d "{
-              \"sha\":\"$new_commit_sha\",
-              \"force\":true
-            }"
+            -H "Accept: application/vnd.g
