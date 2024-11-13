@@ -26,31 +26,12 @@ jobs:
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
 
-      - name: Generate JWT
-        id: generate_jwt
-        uses: tibdex/github-app-token@v2
-        with:
-          app_id: ${{ vars.APP_ID }}
-          private_key: ${{ secrets.APP_PRIVATE_KEY }}
-
-      - name: Get App Info
-        id: app_info
-        run: |
-          response=$(curl -s \
-            -H "Authorization: Bearer ${{ steps.generate_jwt.outputs.token }}" \
-            -H "Accept: application/vnd.github.v3+json" \
-            "https://api.github.com/app")
-
-          app_slug=$(echo "$response" | jq -r '.slug')
-          echo "APP_SLUG=$app_slug" >> $GITHUB_OUTPUT
-          echo "Found app slug: $app_slug"
-
       - name: Configure Git
         env:
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
-          git config --global user.name "${{ steps.app_info.outputs.APP_SLUG }}[bot]"
-          git config --global user.email "${{ vars.APP_ID }}+${{ steps.app_info.outputs.APP_SLUG }}[bot]@users.noreply.github.com"
+          git config --global user.name "${{ vars.APP_SLUG }}[bot]"
+          git config --global user.email "${{ vars.APP_ID }}+${{ vars.APP_SLUG }}[bot]@users.noreply.github.com"
 
       - name: Recommit with Original Authors
         env:
