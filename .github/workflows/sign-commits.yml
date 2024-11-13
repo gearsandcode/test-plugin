@@ -18,8 +18,8 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.ref }}
 
-      - name: Generate App Token
-        id: generate_token
+      - name: Generate JWT
+        id: generate_jwt
         uses: actions/create-github-app-token@v1
         with:
           app-id: ${{ vars.APP_ID }}
@@ -30,24 +30,24 @@ jobs:
         id: app_info
         run: |
           response=$(curl -s \
-            -H "Authorization: Bearer ${{ steps.generate_token.outputs.token }}" \
             -H "Accept: application/vnd.github.v3+json" \
-            "https://api.github.com/app")
+            -H "Authorization: Bearer ${{ steps.generate_jwt.outputs.token }}" \
+            "https://api.github.com/app/installations/${{ github.event.installation.id }}")
 
-          app_name=$(echo "$response" | jq -r '.name | gsub(" "; "-") | ascii_downcase')
-          echo "APP_NAME=$app_name" >> $GITHUB_OUTPUT
-          echo "Found app name: $app_name"
+          app_slug=$(echo "$response" | jq -r '.app_slug')
+          echo "APP_SLUG=$app_slug" >> $GITHUB_OUTPUT
+          echo "Found app slug: $app_slug"
 
       - name: Configure Git
         env:
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
-          git config --global user.name "${{ steps.app_info.outputs.APP_NAME }}[bot]"
-          git config --global user.email "${{ vars.APP_ID }}+${{ steps.app_info.outputs.APP_NAME }}[bot]@users.noreply.github.com"
+          git config --global user.name "${{ steps.app_info.outputs.APP_SLUG }}[bot]"
+          git config --global user.email "${{ vars.APP_ID }}+${{ steps.app_info.outputs.APP_SLUG }}[bot]@users.noreply.github.com"
 
       - name: Recommit with Original Authors
         env:
-          GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}
+          GITHUB_TOKEN: ${{ steps.generate_jwt.outputs.token }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
           # Create a temporary branch
