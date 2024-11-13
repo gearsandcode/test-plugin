@@ -16,19 +16,17 @@ jobs:
           PR_SHA: ${{ github.event.pull_request.head.sha }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Get the commit info
           response=$(curl -sL \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer $GH_TOKEN" \
             https://api.github.com/repos/${{ github.repository }}/commits/$PR_SHA)
 
-          committer_email=$(echo "$response" | jq -r '.commit.committer.email')
-          committer_name=$(echo "$response" | jq -r '.commit.committer.name')
+          commit_message=$(echo "$response" | jq -r '.commit.message')
 
-          echo "Committer: $committer_name <$committer_email>"
-
-          if [[ "$committer_name" == *"[bot]"* ]]; then
+          if [[ "$commit_message" == *"X-Git-Sign: figma-bot"* ]]; then
             echo "should_sign=false" >> $GITHUB_OUTPUT
-            echo "Commit is already from a bot, skipping"
+            echo "Commit is already signed by our bot, skipping"
           else
             echo "should_sign=true" >> $GITHUB_OUTPUT
             echo "Commit needs signing"
@@ -68,9 +66,13 @@ jobs:
           GH_TOKEN: ${{ steps.generate_token.outputs.token }}
         run: |
           # Get the latest commit info
-          commit_msg=$(git log -1 --format=%B)
+          original_msg=$(git log -1 --format=%B)
           tree_hash=$(git rev-parse HEAD^{tree})
           parent_hash=$(git rev-parse HEAD^1)
+
+          # Add our custom trailer
+          commit_msg="${original_msg}
+          X-Git-Sign: figma-bot"
 
           # Escape the commit message for JSON
           commit_msg_escaped=$(echo "$commit_msg" | jq -R -s '.')
