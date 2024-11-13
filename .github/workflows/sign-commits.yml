@@ -22,38 +22,72 @@ jobs:
         id: generate_token
         uses: actions/create-github-app-token@v1
         with:
-          app-id: ${{ secrets.APP_ID }}
+          app-id: ${{ vars.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
+          repository: ${{ github.repository }}
 
       - name: Recommit with Original Authors
         env:
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}
         run: |
+          # Debug info
+          echo "Base ref: ${{ github.base_ref }}"
+          echo "Head SHA: ${{ github.event.pull_request.head.sha }}"
+
+          # Ensure we have the base branch
+          git fetch origin ${{ github.base_ref }}
+
           # Get all commits in the PR
-          commits=$(git log origin/${{ github.base_ref }}..${{ github.event.pull_request.head.sha }} --format="%H")
+          commits=$(git rev-list --reverse origin/${{ github.base_ref }}..${{ github.event.pull_request.head.sha }})
 
-          # Create a temporary branch
-          git checkout -b temp-branch
+          if [ -z "$commits" ]; then
+            echo "No commits found to process"
+            exit 1
+          fi
 
-          # Cherry pick each commit
+          echo "Found commits to process:"
+          echo "$commits"
+
+          # Create a temporary branch from base
+          git checkout -b temp-branch origin/${{ github.base_ref }}
+
+          # Process each commit
           for commit in $commits; do
+            echo "Processing commit: $commit"
+            
             # Get the original commit info
             author_name=$(git log -1 --format="%an" $commit)
             author_email=$(git log -1 --format="%ae" $commit)
             message=$(git log -1 --format=%B $commit)
             date=$(git log -1 --format=%ad $commit)
             
-            # Cherry pick without committing
-            git cherry-pick -n $commit
+            echo "Author: $author_name <$author_email>"
+            echo "Message: $message"
             
-            # Commit with original author but signed by app
-            git -c user.name="$author_name" \
-                -c user.email="$author_email" \
-                commit --date="$date" \
-                -m "$message" \
-                --author="$author_name <$author_email>"
+            # Get the tree from the original commit
+            tree=$(git log -1 --format=%T $commit)
+            
+            # Create a new commit with the same tree
+            git commit --allow-empty \
+                --author="$author_name <$author_email>" \
+                --date="$date" \
+                -m "$message"
+            
+            # Set the tree to match the original commit
+            git_tree_hash=$(git rev-parse HEAD^{tree})
+            if [ "$git_tree_hash" != "$tree" ]; then
+              git read-tree $tree
+              git commit --amend --no-edit --allow-empty
+            fi
           done
 
+          echo "All commits processed, pushing changes"
+
           # Force push back to the PR branch
-          git push --force origin temp-branch:${{ github.event.pull_request.head.ref }}
+          if ! git push --force origin temp-branch:${{ github.event.pull_request.head.ref }}; then
+            echo "Failed to push changes"
+            exit 1
+          fi
+
+          echo "Successfully pushed changes"
