@@ -8,8 +8,7 @@ jobs:
   sign-commits:
     # Check both the label and that the commit isn't already signed by our bot
     if: |
-      contains(github.event.pull_request.labels.*.name, 'figma-plugin') &&
-      !endsWith(github.event.pull_request.head.sha.committer.email, '+${{ vars.APP_SLUG }}[bot]@users.noreply.github.com')
+      contains(github.event.pull_request.labels.*.name, 'figma-plugin') && !endsWith(github.event.pull_request.head.sha.committer.email, '+${{ vars.APP_SLUG }}[bot]@users.noreply.github.com')
     runs-on: ubuntu-latest
     permissions:
       contents: write
