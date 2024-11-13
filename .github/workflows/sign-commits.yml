@@ -25,18 +25,16 @@ jobs:
           app-id: ${{ vars.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
 
       - name: Configure Git
-        env:
-          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
           git config --global user.name "${{ vars.APP_SLUG }}[bot]"
           git config --global user.email "${{ vars.APP_ID }}+${{ vars.APP_SLUG }}[bot]@users.noreply.github.com"
 
-      - name: Recommit with Original Authors
+      - name: Recommit with Bot
         env:
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}
-          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
           # Create a temporary branch
           git checkout -b temp-branch
@@ -44,17 +42,17 @@ jobs:
           # Reset to target commit
           git reset --hard ${{ github.event.pull_request.head.sha }}
 
-          # Amend the commit to be signed by the bot while preserving author
-          author_name=$(git log -1 --format="%an")
-          author_email=$(git log -1 --format="%ae")
-          author_date=$(git log -1 --format=%aI)
+          # Get the original commit message
           commit_msg=$(git log -1 --format=%B)
 
-          # Amend the commit
-          GIT_AUTHOR_NAME="$author_name" \
-          GIT_AUTHOR_EMAIL="$author_email" \
-          GIT_AUTHOR_DATE="$author_date" \
-          git commit --amend --no-edit
+          # Add original author info to commit message
+          author_name=$(git log -1 --format="%an")
+          author_email=$(git log -1 --format="%ae")
+
+          full_msg="${commit_msg} Original-Author: ${author_name} <${author_email}> On-behalf-of: @${{ github.event.pull_request.user.login }}"
+
+          # Amend the commit with bot as both author and committer
+          git commit --amend -m "$full_msg"
 
           # Force push back to the PR branch
           git push --force origin temp-branch:${{ github.event.pull_request.head.ref }}
