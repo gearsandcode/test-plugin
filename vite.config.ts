@@ -1,3 +1,4 @@
+// vite.config.ts
 import path from "node:path";
 import { defineConfig } from "vite";
 import generateFile from "vite-plugin-generate-file";
@@ -15,9 +16,7 @@ export default defineConfig(({ mode }) => ({
   ],
   build: {
     minify: mode === "production",
-    // sourcemap: mode !== 'production' ? 'inline' : false,
-    sourcemap: false,
-    target: "es2017",
+    sourcemap: mode !== "production",
     emptyOutDir: false,
     outDir: path.resolve("dist"),
     rollupOptions: {
@@ -29,9 +28,11 @@ export default defineConfig(({ mode }) => ({
   },
   resolve: {
     alias: {
-      services: path.resolve("src/services"),
-      utilities: path.resolve("src/utilities"),
-      types: path.resolve("src/types"),
+      "@": path.resolve(__dirname, "./src"),
+      components: path.resolve(__dirname, "./src/components"),
+      hooks: path.resolve(__dirname, "./src/hooks"),
+      utils: path.resolve(__dirname, "./src/utils"),
+      types: path.resolve(__dirname, "./src/types"),
     },
   },
 }));

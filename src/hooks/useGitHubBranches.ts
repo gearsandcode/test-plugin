@@ -1,13 +1,18 @@
 import { useState, useEffect, useCallback } from "react";
-import type { StoredSettings } from "../PluginStore";
+import type { StoredSettings } from "../types";
 
-export const useGitHubBranches = (settings: StoredSettings | null) => {
+export function useGitHubBranches(settings: StoredSettings) {
   const [branches, setBranches] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
 
+  // Only recreate fetch function if relevant settings change
+  const settingsKey = `${settings.organization}/${settings.repository}/${settings.token}`;
+
   const fetchBranches = useCallback(async () => {
-    if (!settings?.organization || !settings?.repository || !settings?.token) {
+    if (!settings.organization || !settings.repository || !settings.token) {
+      setError("Missing required settings");
+      setBranches([]);
       return;
     }
 
@@ -38,7 +43,7 @@ export const useGitHubBranches = (settings: StoredSettings | null) => {
     } finally {
       setLoading(false);
     }
-  }, [settings?.organization, settings?.repository, settings?.token]);
+  }, [settingsKey]);
 
   useEffect(() => {
     fetchBranches();
@@ -50,4 +55,4 @@ export const useGitHubBranches = (settings: StoredSettings | null) => {
     error,
     refetch: fetchBranches,
   };
-};
+}

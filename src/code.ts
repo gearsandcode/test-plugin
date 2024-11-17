@@ -1,23 +1,9 @@
-/// <reference types="@figma/plugin-typings" />
-import { saveSettings, loadSettings, type StoredSettings } from "./PluginStore";
+import { saveSettings, loadSettings } from "./PluginStore";
 
 const pluginDefaultWidth = 500;
 const pluginDefaultHeight = 600;
 const pluginMaxHeight = 1200;
 const pluginMinWidth = 300;
-
-interface PluginMessage {
-  type:
-    | "save-settings"
-    | "load-settings"
-    | "create-commit"
-    | "resize"
-    | "save-commit-data";
-  settings?: StoredSettings;
-  success?: boolean;
-  size?: { w: number; h: number };
-  payload?: any;
-}
 
 figma.showUI(__html__, {
   width: pluginDefaultWidth,
@@ -26,84 +12,72 @@ figma.showUI(__html__, {
   themeColors: true,
 });
 
-// Restore previous size when reopen the plugin
-figma.clientStorage
-  .getAsync("size")
-  .then((size) => {
-    if (size) figma.ui.resize(size.w, size.h);
-  })
-  .catch((err) => console.error("Error loading size:", err));
+// Restore previous size
+async function initializeSize() {
+  try {
+    const size = await figma.clientStorage.getAsync("size");
+    if (size) {
+      figma.ui.resize(size.w, size.h);
+    }
+  } catch (err) {
+    console.error("Error loading size:", err);
+  }
+}
 
-figma.ui.onmessage = async (msg: PluginMessage) => {
-  switch (msg.type) {
-    case "save-settings": {
-      if (!msg.settings) {
-        figma.notify("Settings are undefined and cannot be saved.", {
-          error: true,
-        });
-        return;
-      }
+// Initialize size on startup
+initializeSize();
 
-      try {
-        const currentSettings = await loadSettings();
-        const newSettings = {
-          ...currentSettings,
-          ...msg.settings,
-          commitData: {
-            ...currentSettings?.commitData,
-            ...msg.settings.commitData,
-          },
-        };
-        await saveSettings(newSettings);
+figma.ui.onmessage = async (msg) => {
+  // Handle resize message
+  if (msg.type === "resize" && msg.size) {
+    const w = Math.max(msg.size.w, pluginMinWidth);
+    const h = Math.min(
+      Math.max(msg.size.h, pluginDefaultHeight),
+      pluginMaxHeight
+    );
 
-        // Load and send back the saved settings to verify
-        const savedSettings = await loadSettings();
-        figma.ui.postMessage({
-          type: "settings-loaded",
-          settings: savedSettings,
-        });
+    figma.ui.resize(w, h);
 
-        figma.notify("Settings saved!");
-      } catch (error) {
-        console.error("Error saving settings:", error);
-        figma.notify("Error saving settings", { error: true });
-      }
-      break;
+    try {
+      await figma.clientStorage.setAsync("size", { w, h });
+    } catch (err) {
+      console.error("Error saving size:", err);
+    }
+    return;
+  }
+
+  // Handle settings messages
+  if (msg.type === "save-settings") {
+    if (!msg.settings) {
+      figma.notify("Settings are undefined", { error: true });
+      return;
     }
 
-    case "load-settings": {
-      try {
-        const settings = await loadSettings();
-        figma.ui.postMessage({ type: "settings-loaded", settings });
-      } catch (error) {
-        console.error("Error loading settings:", error);
-        figma.notify("Error loading settings", { error: true });
-      }
-      break;
+    try {
+      const savedSettings = await saveSettings(msg.settings);
+      figma.ui.postMessage({
+        type: "settings-loaded",
+        settings: savedSettings,
+      });
+      figma.notify("Settings saved!");
+    } catch (error) {
+      console.error("Error saving settings:", error);
+      figma.notify("Error saving settings", { error: true });
     }
-
-    case "create-commit":
-      if (msg.success) {
-        figma.notify("Successfully created commit! 🎉");
-      }
-      break;
-
-    case "resize":
-      if (msg.size) {
-        let { w, h } = msg.size;
-
-        // Apply constraints
-        h = Math.min(Math.max(h, pluginDefaultHeight), pluginMaxHeight);
-        w = Math.max(w, pluginMinWidth);
-
-        figma.ui.resize(w, h);
-        figma.clientStorage.setAsync("size", { w, h }).catch((err) => {
-          console.error("Error saving size:", err);
-        });
-      }
-      break;
-
-    default:
-      console.log("Unknown message type:", msg.type);
+  } else if (msg.type === "load-settings") {
+    try {
+      const settings = await loadSettings();
+      figma.ui.postMessage({
+        type: "settings-loaded",
+        settings: settings,
+      });
+    } catch (error) {
+      console.error("Error loading settings:", error);
+      figma.notify("Error loading settings", { error: true });
+    }
+  } else if (msg.type === "create-commit") {
+    if (msg.success) {
+      figma.notify("Successfully created commit!");
+    }
   }
 };
