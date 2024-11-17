@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { StoredSettings, CommitData } from "../PluginStore";
+import type { StoredSettings, CommitData } from "../types";
 
 export const useCommit = (settings: StoredSettings | null) => {
   const [loading, setLoading] = useState(false);
@@ -41,7 +41,7 @@ export const useCommit = (settings: StoredSettings | null) => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            content: commitData.file,
+            content: commitData.content,
             encoding: "utf-8",
           }),
         }

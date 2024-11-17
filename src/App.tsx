@@ -1,81 +1,34 @@
-import React, { useState, useEffect } from "react";
-// todo - troubleshoot - see: https://github.com/phosphor-icons/react/issues/96
-import { GithubLogo } from "@phosphor-icons/react/GithubLogo";
-import CommitForm from "./components/CommitForm";
-import SettingsForm from "./components/SettingsForm";
-import type { StoredSettings } from "./PluginStore";
-import ResizeHandle from "./components/ResizableCorner";
+import { useState, useEffect } from "react";
+import { Gear, Spinner } from "@phosphor-icons/react";
+import { CommitForm, SettingsForm, TabButton } from "./components";
+import { ResizeHandle } from "./components/ResizeHandle";
+import { useGitHubSettings } from "./hooks/useGitHubSettings";
 
-interface TabButtonProps {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}
-
-const TabButton: React.FC<TabButtonProps> = ({ label, active, onClick }) => (
-  <button
-    onClick={onClick}
-    className={`
-      px-3 py-1.5 text-xs
-      ${active ? "bg-blue-500 text-white" : "hover:bg-black/5"}
-      transition-colors rounded-sm
-    `}
-  >
-    {label}
-  </button>
-);
-
-const App: React.FC = () => {
+export function App() {
   const [activeTab, setActiveTab] = useState<"commit" | "settings">("commit");
-  const [settings, setSettings] = useState<StoredSettings | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { settings, loading, saveSettings, updateCommitData } =
+    useGitHubSettings();
 
   const hasRequiredSettings =
     settings?.token && settings?.organization && settings?.repository;
 
   useEffect(() => {
-    parent.postMessage({ pluginMessage: { type: "load-settings" } }, "*");
-
-    const handleMessage = (event: MessageEvent) => {
-      const msg = event.data.pluginMessage;
-      if (msg.type === "settings-loaded") {
-        setSettings(msg.settings);
-        setLoading(false);
-
-        const hasSettings =
-          msg.settings?.token &&
-          msg.settings?.organization &&
-          msg.settings?.repository;
-        setActiveTab(hasSettings ? "commit" : "settings");
-      }
-    };
-
-    window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
-  }, []);
-
-  const handleSettingsSaved = (newSettings: StoredSettings) => {
-    setSettings(newSettings);
-    if (
-      newSettings.token &&
-      newSettings.organization &&
-      newSettings.repository
-    ) {
-      setActiveTab("commit");
+    if (!hasRequiredSettings && !loading) {
+      setActiveTab("settings");
     }
-  };
+  }, [hasRequiredSettings, loading]);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center">
-        <span className="text-xs opacity-50">Loading settings...</span>
+      <div className="flex items-center justify-center h-screen">
+        <Spinner className="w-6 h-6 animate-spin" />
       </div>
     );
   }
 
   return (
-    <div>
-      <div className="border-b">
+    <div className="flex flex-col h-screen">
+      <div className="flex-none">
         <div className="px-4 py-2 flex justify-between items-center">
           {hasRequiredSettings ? (
             <div className="flex items-center justify-between w-full">
@@ -90,38 +43,40 @@ const App: React.FC = () => {
                   p-2 rounded-sm
                   ${
                     activeTab === "settings"
-                      ? "bg-blue-500 text-white"
-                      : "hover:bg-black/5"
+                      ? "opacity-100"
+                      : "opacity-60 hover:opacity-100"
                   }
-                  transition-colors
+                  transition-opacity
                 `}
               >
-                <GithubLogo
-                  size={16}
-                  weight={activeTab === "settings" ? "fill" : "regular"}
-                />
+                <Gear size={16} />
               </button>
             </div>
           ) : (
             <h1 className="text-sm font-medium">GitHub Commit Creator</h1>
           )}
         </div>
+        <div className="h-0.5 w-full bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500"></div>
       </div>
 
-      {activeTab === "settings" ? (
-        <SettingsForm initialSettings={settings} onSave={handleSettingsSaved} />
-      ) : hasRequiredSettings ? (
-        <CommitForm settings={settings!} />
-      ) : (
-        <div className="p-4">
-          <p className="text-sm opacity-50">
-            Please configure your settings to continue.
-          </p>
-        </div>
-      )}
+      <div className="flex-1 overflow-auto">
+        {activeTab === "settings" ? (
+          <SettingsForm initialSettings={settings} onSave={saveSettings} />
+        ) : hasRequiredSettings ? (
+          <CommitForm
+            settings={settings!}
+            onUpdateCommitData={updateCommitData}
+          />
+        ) : (
+          <div className="p-4">
+            <p className="text-sm opacity-50">
+              Please configure your settings to continue.
+            </p>
+          </div>
+        )}
+      </div>
+
       <ResizeHandle />
     </div>
   );
-};
-
-export default App;
+}

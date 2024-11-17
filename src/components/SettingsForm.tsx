@@ -1,16 +1,12 @@
-import React, { useState, FormEvent, ChangeEvent, memo } from "react";
+import { useState } from "react";
+import { ArrowClockwise } from "@phosphor-icons/react";
+import { Input, Button, Alert } from "./";
+import type { StoredSettings } from "../types";
 
-interface Settings {
-  token: string;
-  organization: string;
-  repository: string;
-  label: string;
-}
-
-interface Props {
-  initialSettings: Settings | null;
-  onSave: (settings: Settings) => void;
-}
+type SettingsFormProps = {
+  initialSettings: StoredSettings | null;
+  onSave: (settings: StoredSettings) => void;
+};
 
 const DEFAULT_VALUES = {
   organization: "gearsandcode",
@@ -18,193 +14,140 @@ const DEFAULT_VALUES = {
   label: "figma-plugin",
 };
 
-const FormInput = memo(
-  ({
-    label,
-    name,
-    value,
-    type = "text",
-    onChange,
-  }: {
-    label: string;
-    name: string;
-    value: string;
-    type?: string;
-    onChange: (e: ChangeEvent<HTMLInputElement>) => void;
-  }) => (
-    <div className="space-y-1">
-      <label className="text-xs">{label}</label>
-      <input
-        type={type}
-        name={name}
-        className="w-full px-2 py-1.5 border rounded-sm text-sm
-          hover:border-black/30 focus:border-blue-500 focus:outline-none transition-colors"
-        value={value}
-        onChange={onChange}
-        required
-      />
-    </div>
-  )
-);
-
-FormInput.displayName = "FormInput";
-
-const SettingsForm: React.FC<Props> = ({ initialSettings, onSave }) => {
-  const [formData, setFormData] = useState<Settings>({
+export function SettingsForm({ initialSettings, onSave }: SettingsFormProps) {
+  const [formData, setFormData] = useState<StoredSettings>({
     token: initialSettings?.token || "",
     organization: initialSettings?.organization || DEFAULT_VALUES.organization,
     repository: initialSettings?.repository || DEFAULT_VALUES.repository,
     label: initialSettings?.label || DEFAULT_VALUES.label,
   });
-  const [loading, setLoading] = useState(false);
 
-  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string>("");
+
+  function handleChange(key: keyof StoredSettings, value: string) {
     setFormData((prev) => ({
       ...prev,
-      [name]: value,
+      [key]: value,
     }));
-  };
+    setError("");
+  }
 
-  const handleSubmit = async (e: FormEvent) => {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
+    setError("");
 
-    parent.postMessage(
-      {
-        pluginMessage: {
-          type: "save-settings",
-          settings: formData,
-        },
-      },
-      "*"
-    );
+    try {
+      await onSave(formData);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save settings");
+    } finally {
+      setLoading(false);
+    }
+  }
 
-    onSave(formData);
-    setLoading(false);
-  };
+  function handleUseDefaults() {
+    setFormData((prev) => ({
+      ...prev,
+      organization: DEFAULT_VALUES.organization,
+      repository: DEFAULT_VALUES.repository,
+      label: DEFAULT_VALUES.label,
+    }));
+  }
 
-  const handleClear = () => {
+  function handleClear() {
     if (window.confirm("Are you sure you want to clear all settings?")) {
-      const emptySettings = {
+      const emptySettings: StoredSettings = {
         token: "",
         organization: "",
         repository: "",
         label: "",
       };
-
       setFormData(emptySettings);
-
-      parent.postMessage(
-        {
-          pluginMessage: {
-            type: "save-settings",
-            settings: emptySettings,
-          },
-        },
-        "*"
-      );
-
       onSave(emptySettings);
     }
-  };
-
-  const handleUseDefaults = () => {
-    const defaultSettings = {
-      ...formData,
-      organization: DEFAULT_VALUES.organization,
-      repository: DEFAULT_VALUES.repository,
-      label: DEFAULT_VALUES.label,
-    };
-    setFormData(defaultSettings);
-  };
+  }
 
   return (
-    <div className="p-4">
+    <form onSubmit={handleSubmit} className="p-4 space-y-4">
       <div>
-        <h1 className="text-base font-medium">GitHub Settings</h1>
-        <p className="text-xs opacity-50 mt-1">
+        <div className="flex items-center gap-2 mb-1">
+          <h2 className="text-base font-medium">GitHub Settings</h2>
+        </div>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
           Configure your GitHub repository settings
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-        <FormInput
-          label="PERSONAL ACCESS TOKEN"
-          name="token"
-          type="password"
-          value={formData.token}
-          onChange={handleChange}
+      {error && (
+        <Alert type="error" message={error} onDismiss={() => setError("")} />
+      )}
+
+      <Input
+        label="PERSONAL ACCESS TOKEN"
+        type="password"
+        value={formData.token}
+        onChange={(e) => handleChange("token", e.target.value)}
+        required
+      />
+
+      <div className="space-y-4">
+        <Input
+          label="ORGANIZATION/USER"
+          value={formData.organization}
+          onChange={(e) => handleChange("organization", e.target.value)}
+          required
         />
-        <div className="space-y-4">
-          <FormInput
-            label="ORGANIZATION/USER"
-            name="organization"
-            value={formData.organization}
-            onChange={handleChange}
-          />
-          <FormInput
-            label="REPOSITORY"
-            name="repository"
-            value={formData.repository}
-            onChange={handleChange}
-          />
-          <FormInput
-            label="DEFAULT LABEL"
-            name="label"
-            value={formData.label}
-            onChange={handleChange}
-          />
 
-          <button
-            type="button"
-            onClick={handleUseDefaults}
-            className="
-              text-sm
-              text-blue-500 hover:text-blue-600
-              flex items-center
-              transition-colors
-            "
-          >
-            Use default values
-          </button>
-        </div>
+        <Input
+          label="REPOSITORY"
+          value={formData.repository}
+          onChange={(e) => handleChange("repository", e.target.value)}
+          required
+        />
 
-        <div className="flex space-x-2 pt-2">
-          <button
-            type="submit"
-            disabled={loading}
-            className={`
-            flex-1 py-1.5 px-3
-            rounded-sm text-sm text-white
-            transition-colors
-            ${
-              loading
-                ? "bg-blue-400 cursor-not-allowed"
-                : "bg-blue-500 hover:bg-blue-600 active:bg-blue-700"
-            }
-          `}
-          >
-            {loading ? "Saving..." : "Save Settings"}
-          </button>
+        <Input
+          label="DEFAULT LABEL"
+          value={formData.label}
+          onChange={(e) => handleChange("label", e.target.value)}
+          required
+        />
 
-          <button
-            type="button"
-            onClick={handleClear}
-            className="
-            py-1.5 px-3
-            rounded-sm text-sm
-            text-red-500 hover:text-red-600 active:text-red-700
-            border border-red-500 hover:border-red-600 active:border-red-700
+        <button
+          type="button"
+          onClick={handleUseDefaults}
+          className="
+            inline-flex items-center gap-2
+            text-xs text-gray-500 hover:text-gray-900
+            dark:text-gray-400 dark:hover:text-gray-100
             transition-colors
           "
-          >
-            Clear Settings
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-};
+        >
+          <ArrowClockwise className="w-3 h-3" />
+          Use default values
+        </button>
+      </div>
 
-export default SettingsForm;
+      <div className="flex space-x-2 pt-2">
+        <Button
+          type="submit"
+          loading={loading}
+          variant="primary"
+          className="flex-1"
+        >
+          Save Settings
+        </Button>
+
+        <Button
+          type="button"
+          variant="danger"
+          onClick={handleClear}
+          className="text-xs"
+        >
+          Clear
+        </Button>
+      </div>
+    </form>
+  );
+}

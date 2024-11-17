@@ -1,20 +1,24 @@
-import React from "react";
-import { useFormField } from "../hooks/useFormField";
-import { useGitHubBranches } from "../hooks/useGitHubBranches";
-import { useCommit } from "../hooks/useCommit";
-import { Spinner } from "@phosphor-icons/react";
-import type { StoredSettings, CommitData } from "../PluginStore";
+import { useState, useEffect } from "react";
+import { Input, Button, Alert, BranchSelect } from "../components";
+import { useGitHubBranches, useCommit } from "../hooks";
+import type { StoredSettings, CommitData } from "../types";
 
-interface Props {
+type CommitFormProps = {
   settings: StoredSettings;
-}
+  onUpdateCommitData?: (data: Partial<CommitData>) => void;
+};
 
-const CommitForm: React.FC<Props> = ({ settings }) => {
-  const branch = useFormField(settings.commitData?.branch || "");
-  const message = useFormField(settings.commitData?.message || "");
-  const filename = useFormField(settings.commitData?.filename || "test.md");
-  const fileContent = useFormField(settings.commitData?.file || "");
+export function CommitForm({ settings, onUpdateCommitData }: CommitFormProps) {
+  const [formData, setFormData] = useState<CommitData>({
+    branch: settings.commitData?.branch || "",
+    message: settings.commitData?.message || "",
+    filename: settings.commitData?.filename || "test.md",
+    content: settings.commitData?.content || "",
+  });
 
+  const [formErrors, setFormErrors] = useState<
+    Partial<Record<keyof CommitData, string>>
+  >({});
   const {
     branches,
     loading: branchesLoading,
@@ -26,145 +30,135 @@ const CommitForm: React.FC<Props> = ({ settings }) => {
     error: commitError,
   } = useCommit(settings);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Update form data when settings change
+  useEffect(() => {
+    if (settings.commitData) {
+      setFormData((prev) => ({
+        ...prev,
+        ...settings.commitData,
+      }));
+    }
+  }, [settings.commitData]);
+
+  function handleInputChange(key: keyof CommitData, value: string) {
+    const newFormData = {
+      ...formData,
+      [key]: value,
+    };
+
+    setFormData(newFormData);
+
+    if (formErrors[key]) {
+      setFormErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors[key];
+        return newErrors;
+      });
+    }
+
+    // Persist the change
+    onUpdateCommitData?.({ [key]: value });
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!message.value.trim()) {
-      message.setError("Commit message is required");
+    // Validate form
+    const errors: Partial<Record<keyof CommitData, string>> = {};
+    if (!formData.branch) errors.branch = "Branch is required";
+    if (!formData.message.trim()) errors.message = "Commit message is required";
+    if (!formData.filename.trim()) errors.filename = "Filename is required";
+    if (!formData.content.trim()) errors.content = "Content is required";
+
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
       return;
     }
 
-    const commitData: CommitData = {
-      branch: branch.value,
-      message: message.value,
-      filename: filename.value,
-      file: fileContent.value,
-    };
-
-    await createCommit(commitData);
-  };
+    try {
+      await createCommit(formData);
+      // Optionally clear form or show success message
+      // But don't save settings here - they're already saved via onUpdateCommitData
+    } catch (err) {
+      console.error("Commit failed:", err);
+    }
+  }
 
   return (
-    <div className="p-4">
+    <form onSubmit={handleSubmit} className="p-4 space-y-4">
       <div>
-        <h1 className="text-base font-medium">Create GitHub Commit</h1>
-        <p className="text-xs opacity-50 mt-1">
-          Commit files directly to your GitHub repository
+        <div className="flex items-center gap-2 mb-1">
+          <h2 className="text-base font-medium">Create Commit</h2>
+        </div>
+        <p className="text-sm opacity-50">
+          Create a new commit in your GitHub repository
         </p>
       </div>
 
       {(commitError || branchesError) && (
-        <div className="p-3 mt-6 bg-red-50 rounded-sm">
-          <p className="text-xs text-red-600">{commitError || branchesError}</p>
-        </div>
+        <Alert
+          type="error"
+          message={commitError || branchesError}
+          onDismiss={() => {}}
+        />
       )}
 
-      <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <label className="text-xs flex items-center justify-between">
-              BRANCH
-              {branchesLoading && (
-                <span className="opacity-50">Loading...</span>
-              )}
-            </label>
-            <div className="relative">
-              <select
-                className="w-full px-2 py-1.5 border rounded-sm text-sm appearance-none"
-                value={branch.value}
-                onChange={(e) => branch.onChange(e.target.value)}
-                disabled={branchesLoading}
-              >
-                {branches.map((branchName) => (
-                  <option key={branchName} value={branchName}>
-                    {branchName}
-                  </option>
-                ))}
-              </select>
-              <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
-                <svg
-                  className="h-4 w-4 opacity-50"
-                  fill="none"
-                  viewBox="0 0 16 16"
-                >
-                  <path
-                    d="M4 6L8 10L12 6"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </div>
-            </div>
-          </div>
+      <div className="grid grid-cols-2 gap-4">
+        <BranchSelect
+          branches={branches}
+          selectedBranch={formData.branch}
+          onChange={(value) => handleInputChange("branch", value)}
+          loading={branchesLoading}
+          error={formErrors.branch}
+        />
 
-          <div className="space-y-1">
-            <label className="text-xs">FILENAME</label>
-            <input
-              className="w-full px-2 py-1.5 border rounded-sm text-sm"
-              value={filename.value}
-              onChange={(e) => filename.onChange(e.target.value)}
-              placeholder="e.g., test.md"
-              required
-            />
-          </div>
-        </div>
+        <Input
+          label="FILENAME"
+          value={formData.filename}
+          onChange={(e) => handleInputChange("filename", e.target.value)}
+          placeholder="e.g., docs/README.md"
+          error={formErrors.filename}
+          required
+        />
+      </div>
 
-        <div className="space-y-1">
-          <label className="text-xs">COMMIT MESSAGE</label>
-          <input
-            className={`w-full px-2 py-1.5 border rounded-sm text-sm ${
-              message.error ? "border-red-500" : ""
-            }`}
-            value={message.value}
-            onChange={(e) => message.onChange(e.target.value)}
-            placeholder="e.g., docs: update test.md"
-            required
-          />
-          {message.error && (
-            <span className="text-xs text-red-500">{message.error}</span>
-          )}
-        </div>
+      <Input
+        label="COMMIT MESSAGE"
+        value={formData.message}
+        onChange={(e) => handleInputChange("message", e.target.value)}
+        placeholder="e.g., Update documentation"
+        error={formErrors.message}
+        required
+      />
 
-        <div className="space-y-1">
-          <label className="text-xs">FILE CONTENT</label>
-          <textarea
-            className="w-full px-2 py-1.5 border rounded-sm text-sm font-mono resize-y"
-            value={fileContent.value}
-            onChange={(e) => fileContent.onChange(e.target.value)}
-            rows={8}
-            required
-          />
-        </div>
-
-        <button
-          type="submit"
-          disabled={commitLoading}
+      <div className="space-y-1">
+        <label className="text-xs opacity-60">FILE CONTENT</label>
+        <textarea
+          value={formData.content}
+          onChange={(e) => handleInputChange("content", e.target.value)}
           className={`
-            w-full py-1.5 px-3 
-            rounded-sm text-sm text-white
-            transition-colors
-            flex items-center justify-center space-x-2
-            ${
-              commitLoading
-                ? "bg-blue-400 cursor-not-allowed"
-                : "bg-blue-500 hover:bg-blue-600 active:bg-blue-700"
-            }
+            w-full px-2 py-1.5 text-xs
+            rounded-sm
+            font-mono min-h-[200px] resize-y
+            ${formErrors.content ? "border-red-500" : ""}
           `}
-        >
-          {commitLoading ? (
-            <>
-              <Spinner className="w-4 h-4 animate-spin" />
-              <span>Creating Commit...</span>
-            </>
-          ) : (
-            "Create Commit"
-          )}
-        </button>
-      </form>
-    </div>
-  );
-};
+          placeholder="Enter file content..."
+          required
+        />
+        {formErrors.content && (
+          <p className="text-xs text-red-500">{formErrors.content}</p>
+        )}
+      </div>
 
-export default CommitForm;
+      <div className="flex justify-end">
+        <Button
+          type="submit"
+          loading={commitLoading}
+          disabled={branchesLoading || commitLoading}
+        >
+          Create Commit
+        </Button>
+      </div>
+    </form>
+  );
+}
