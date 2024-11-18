@@ -1,27 +1,113 @@
 import { useState, useEffect } from "react";
-import { Gear, Spinner } from "@phosphor-icons/react";
-import { CommitForm, SettingsForm, TabButton } from "./components";
-import { ResizeHandle } from "./components/ResizeHandle";
+import { Gear } from "@phosphor-icons/react";
+import {
+  SettingsForm,
+  TabButton,
+  ResizeHandle,
+  VariablesDisplay,
+  PullRequestForm,
+} from "./components";
 import { useGitHubSettings } from "./hooks/useGitHubSettings";
+import { useGitHubPR } from "./hooks/useGitHubPR";
+import type { PRFormData } from "./types";
+
+type AppTab = "variables" | "settings";
+
+interface Variable {
+  name: string;
+  value: string;
+  description?: string;
+  type: string;
+}
+
+interface VariableCollection {
+  collection: string;
+  variables: Variable[];
+}
 
 export function App() {
-  const [activeTab, setActiveTab] = useState<"commit" | "settings">("commit");
-  const { settings, loading, saveSettings, updateCommitData } =
-    useGitHubSettings();
+  const [activeTab, setActiveTab] = useState<AppTab>("variables");
+  const [showPRForm, setShowPRForm] = useState(false);
+  const [variables, setVariables] = useState<VariableCollection[]>([]);
+  const [exportData, setExportData] = useState<any>(null);
+  const [variablesLoading, setVariablesLoading] = useState(true);
+
+  const {
+    settings,
+    loading: settingsLoading,
+    saveSettings,
+  } = useGitHubSettings();
+
+  const { createPR, loading: prLoading } = useGitHubPR(
+    settings || {
+      token: "",
+      organization: "",
+      repository: "",
+      label: "",
+    }
+  );
 
   const hasRequiredSettings =
     settings?.token && settings?.organization && settings?.repository;
 
+  // Load variables from Figma
   useEffect(() => {
-    if (!hasRequiredSettings && !loading) {
+    if (hasRequiredSettings) {
+      parent.postMessage({ pluginMessage: { type: "get-variables" } }, "*");
+    }
+  }, [hasRequiredSettings]);
+
+  // Handle messages from the plugin
+  useEffect(() => {
+    function handleMessage(event: MessageEvent) {
+      const message = event.data.pluginMessage;
+      if (!message) return;
+
+      if (message.type === "variables-loaded") {
+        setVariables(message.variables);
+        setExportData(message.exportData);
+        setVariablesLoading(false);
+      }
+    }
+
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, []);
+
+  // Automatically show settings if they're not configured
+  useEffect(() => {
+    if (!hasRequiredSettings && !settingsLoading) {
       setActiveTab("settings");
     }
-  }, [hasRequiredSettings, loading]);
+  }, [hasRequiredSettings, settingsLoading]);
 
-  if (loading) {
+  const handleCreatePR = async (formData: PRFormData) => {
+    if (!exportData) {
+      figma.notify("No variables data available", { error: true });
+      return;
+    }
+
+    try {
+      await createPR({
+        ...formData,
+        content: JSON.stringify(exportData, null, 2),
+        label: settings?.label,
+      });
+
+      setShowPRForm(false);
+      figma.notify("Successfully created pull request!");
+    } catch (error) {
+      console.error("Failed to create PR:", error);
+      figma.notify("Failed to create pull request", { error: true });
+    }
+  };
+
+  if (settingsLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <Spinner className="w-6 h-6 animate-spin" />
+        <div className="animate-spin">
+          <Gear className="w-6 h-6 opacity-50" />
+        </div>
       </div>
     );
   }
@@ -33,9 +119,9 @@ export function App() {
           {hasRequiredSettings ? (
             <div className="flex items-center justify-between w-full">
               <TabButton
-                label="Commit"
-                active={activeTab === "commit"}
-                onClick={() => setActiveTab("commit")}
+                label="Variables"
+                active={activeTab === "variables"}
+                onClick={() => setActiveTab("variables")}
               />
               <button
                 onClick={() => setActiveTab("settings")}
@@ -53,19 +139,28 @@ export function App() {
               </button>
             </div>
           ) : (
-            <h1 className="text-sm font-medium">GitHub Commit Creator</h1>
+            <h1 className="text-sm font-medium">GitHub Variables Sync</h1>
           )}
         </div>
+
         <div className="h-0.5 w-full bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500"></div>
       </div>
 
       <div className="flex-1 overflow-auto">
         {activeTab === "settings" ? (
           <SettingsForm initialSettings={settings} onSave={saveSettings} />
-        ) : hasRequiredSettings ? (
-          <CommitForm
+        ) : showPRForm ? (
+          <PullRequestForm
             settings={settings!}
-            onUpdateCommitData={updateCommitData}
+            onCancel={() => setShowPRForm(false)}
+            onSubmit={handleCreatePR}
+            loading={prLoading}
+          />
+        ) : hasRequiredSettings ? (
+          <VariablesDisplay
+            variables={variables}
+            loading={variablesLoading}
+            onCreatePR={() => setShowPRForm(true)}
           />
         ) : (
           <div className="p-4">

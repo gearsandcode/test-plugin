@@ -14,3 +14,10 @@ export interface StoredSettings {
   label: string;
   commitData?: PartialCommitData;
 }
+
+export interface PRFormData {
+  title: string;
+  branch: string;
+  description: string;
+  baseBranch: string;
+}
