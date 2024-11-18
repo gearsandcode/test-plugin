@@ -142,7 +142,6 @@ export function App() {
             <h1 className="text-sm font-medium">GitHub Variables Sync</h1>
           )}
         </div>
-
         <div className="h-0.5 w-full bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500"></div>
       </div>
 
