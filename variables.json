@@ -1,0 +1,116 @@
+{
+  "resume data": {
+    "email": {
+      "value": "jesse@2ofb.com",
+      "type": "STRING",
+      "scope": "ALL_SCOPES"
+    },
+    "location": {
+      "value": "Seattle, Wa, USA",
+      "type": "STRING",
+      "scope": "ALL_SCOPES"
+    },
+    "linkedin user": {
+      "value": "gearsandcode",
+      "type": "STRING",
+      "scope": "ALL_SCOPES"
+    },
+    "phone": {
+      "value": "+1.913.302.9368",
+      "type": "STRING",
+      "scope": "ALL_SCOPES"
+    },
+    "github user": {
+      "value": "gearsandcode",
+      "type": "STRING",
+      "scope": "ALL_SCOPES"
+    },
+    "linedin url": {
+      "value": "String value",
+      "type": "STRING",
+      "scope": "ALL_SCOPES"
+    },
+    "github url": {
+      "value": "String value",
+      "type": "STRING",
+      "scope": "ALL_SCOPES"
+    },
+    "date": {
+      "value": "15 July 2024",
+      "type": "STRING",
+      "scope": "ALL_SCOPES"
+    },
+    "hiring manager": {
+      "value": "Hiring Manager",
+      "type": "STRING",
+      "scope": "ALL_SCOPES"
+    },
+    "company": {
+      "value": "JP Morgan Chase & Co.",
+      "type": "STRING",
+      "scope": "ALL_SCOPES"
+    },
+    "company address": {
+      "value": "25 Bank St, London E14 5JP, United Kingdom",
+      "type": "STRING",
+      "scope": "ALL_SCOPES"
+    },
+    "job title": {
+      "value": "Aspiring Leader / Technical Lead - Design Systems",
+      "type": "STRING",
+      "scope": "ALL_SCOPES"
+    },
+    "intro": {
+      "value": "Skilled developer, leader, and life-long learner with a passion for creating tooling and processes to improve development and design collaboration. A complete design system nerd, looking for an opportunity to build teams and inspire them to do career defining work.",
+      "type": "STRING",
+      "scope": "ALL_SCOPES"
+    },
+    "page margin sides": {
+      "value": 48,
+      "type": "FLOAT",
+      "scope": "ALL_SCOPES"
+    },
+    "page margin top": {
+      "value": 36,
+      "type": "FLOAT",
+      "scope": "ALL_SCOPES"
+    },
+    "banner/background": {
+      "value": {
+        "type": "VARIABLE_ALIAS",
+        "id": "VariableID:183:318"
+      },
+      "type": "COLOR",
+      "description": "background for contact info banner",
+      "scope": "ALL_SCOPES"
+    },
+    "banner/text": {
+      "value": {
+        "type": "VARIABLE_ALIAS",
+        "id": "VariableID:183:320"
+      },
+      "type": "COLOR",
+      "scope": "ALL_SCOPES"
+    },
+    "color/green": {
+      "value": {
+        "r": 0.4156862795352936,
+        "g": 0.5372549295425415,
+        "b": 0.1411764770746231,
+        "a": 1
+      },
+      "type": "COLOR",
+      "scope": "ALL_SCOPES"
+    },
+    "color/white": {
+      "value": {
+        "r": 1,
+        "g": 1,
+        "b": 1,
+        "a": 1
+      },
+      "type": "COLOR",
+      "scope": "ALL_SCOPES"
+    }
+  }
+}
