@@ -1,0 +1,87 @@
+{
+  "resume data": {
+    "email": {
+      "value": "jesse@2ofb.com",
+      "type": "STRING"
+    },
+    "location": {
+      "value": "Seattle, Wa, USA",
+      "type": "STRING"
+    },
+    "linkedin user": {
+      "value": "gearsandcode",
+      "type": "STRING"
+    },
+    "phone": {
+      "value": "+1.913.302.9368",
+      "type": "STRING"
+    },
+    "github user": {
+      "value": "gearsandcode",
+      "type": "STRING"
+    },
+    "linedin url": {
+      "value": "String value",
+      "type": "STRING"
+    },
+    "github url": {
+      "value": "String value",
+      "type": "STRING"
+    },
+    "date": {
+      "value": "15 July 2024",
+      "type": "STRING"
+    },
+    "hiring manager": {
+      "value": "Hiring Manager",
+      "type": "STRING"
+    },
+    "company": {
+      "value": "JP Morgan Chase & Co.",
+      "type": "STRING"
+    },
+    "company address": {
+      "value": "25 Bank St, London E14 5JP, United Kingdom",
+      "type": "STRING"
+    },
+    "job title": {
+      "value": "Aspiring Leader / Technical Lead - Design Systems",
+      "type": "STRING"
+    },
+    "intro": {
+      "value": "Skilled developer, leader, and life-long learner with a passion for creating tooling and processes to improve development and design collaboration. A complete design system nerd, looking for an opportunity to build teams and inspire them to do career defining work.",
+      "type": "STRING"
+    },
+    "page margin sides": {
+      "value": "48",
+      "type": "FLOAT"
+    },
+    "page margin top": {
+      "value": "36",
+      "type": "FLOAT"
+    },
+    "banner/background": {
+      "value": "#6a8924",
+      "type": "COLOR",
+      "description": "background for contact info banner",
+      "resolvedFrom": "color/green"
+    },
+    "banner/text": {
+      "value": "#ffffff",
+      "type": "COLOR",
+      "resolvedFrom": "color/white"
+    },
+    "color/green": {
+      "value": "#6a8924",
+      "type": "COLOR"
+    },
+    "color/blue": {
+      "value": "#0361c5",
+      "type": "COLOR"
+    },
+    "color/white": {
+      "value": "#ffffff",
+      "type": "COLOR"
+    }
+  }
+}
