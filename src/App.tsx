@@ -5,104 +5,75 @@ import {
   TabButton,
   ResizeHandle,
   VariablesDisplay,
-  PullRequestForm,
 } from "./components";
+import { PullRequestForm } from "./components";
 import { useGitHubSettings } from "./hooks/useGitHubSettings";
-import { useGitHubPR } from "./hooks/useGitHubPR";
-import type { PRFormData } from "./types";
-
-type AppTab = "variables" | "settings";
-
-interface Variable {
-  name: string;
-  value: string;
-  description?: string;
-  type: string;
-}
-
-interface VariableCollection {
-  collection: string;
-  variables: Variable[];
-}
+import type { StoredSettings } from "./types";
+import type { VariableCollection } from "./components/VariablesDisplay";
+import { notify } from "./utils";
 
 export function App() {
-  const [activeTab, setActiveTab] = useState<AppTab>("variables");
+  const [activeTab, setActiveTab] = useState<
+    "variables" | "pull-request" | "settings"
+  >("variables");
   const [showPRForm, setShowPRForm] = useState(false);
   const [variables, setVariables] = useState<VariableCollection[]>([]);
   const [exportData, setExportData] = useState<any>(null);
   const [variablesLoading, setVariablesLoading] = useState(true);
+  const [settings, setSettings] = useState<StoredSettings | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const {
-    settings,
-    loading: settingsLoading,
-    saveSettings,
-  } = useGitHubSettings();
-
-  const { createPR, loading: prLoading } = useGitHubPR(
-    settings || {
-      token: "",
-      organization: "",
-      repository: "",
-      label: "",
-    }
-  );
+  const settingsManager = useGitHubSettings();
 
   const hasRequiredSettings =
     settings?.token && settings?.organization && settings?.repository;
 
-  // Load variables from Figma
-  useEffect(() => {
-    if (hasRequiredSettings) {
-      parent.postMessage({ pluginMessage: { type: "get-variables" } }, "*");
-    }
-  }, [hasRequiredSettings]);
-
-  // Handle messages from the plugin
   useEffect(() => {
     function handleMessage(event: MessageEvent) {
-      const message = event.data.pluginMessage;
-      if (!message) return;
+      const msg = event.data.pluginMessage;
+      if (!msg) return;
 
-      if (message.type === "variables-loaded") {
-        setVariables(message.variables);
-        setExportData(message.exportData);
+      if (msg.type === "settings-loaded") {
+        setSettings(msg.settings);
+        setLoading(false);
+      }
+
+      if (msg.type === "variables-loaded") {
+        setVariables(msg.variables);
+        setExportData(msg.exportData);
         setVariablesLoading(false);
       }
     }
 
     window.addEventListener("message", handleMessage);
+    settingsManager.loadSettings();
+
     return () => window.removeEventListener("message", handleMessage);
   }, []);
 
-  // Automatically show settings if they're not configured
   useEffect(() => {
-    if (!hasRequiredSettings && !settingsLoading) {
+    if (hasRequiredSettings) {
+      setVariablesLoading(true);
+      parent.postMessage({ pluginMessage: { type: "get-variables" } }, "*");
+    }
+  }, [hasRequiredSettings]);
+
+  useEffect(() => {
+    if (!hasRequiredSettings && !loading) {
       setActiveTab("settings");
     }
-  }, [hasRequiredSettings, settingsLoading]);
+  }, [hasRequiredSettings, loading]);
 
-  const handleCreatePR = async (formData: PRFormData) => {
-    if (!exportData) {
-      figma.notify("No variables data available", { error: true });
-      return;
-    }
-
+  const handleSaveSettings = async (newSettings: Partial<StoredSettings>) => {
     try {
-      await createPR({
-        ...formData,
-        content: JSON.stringify(exportData, null, 2),
-        label: settings?.label,
-      });
-
-      setShowPRForm(false);
-      figma.notify("Successfully created pull request!");
+      await settingsManager.saveSettings(newSettings);
     } catch (error) {
-      console.error("Failed to create PR:", error);
-      figma.notify("Failed to create pull request", { error: true });
+      console.error("Failed to save settings:", error);
+      notify("Failed to save settings");
     }
   };
 
-  if (settingsLoading) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="animate-spin">
@@ -115,28 +86,24 @@ export function App() {
   return (
     <div className="flex flex-col h-screen">
       <div className="flex-none">
-        <div className="px-4 py-2 flex justify-between items-center">
+        <div className="px-4 py-2 flex items-center">
           {hasRequiredSettings ? (
-            <div className="flex items-center justify-between w-full">
+            <div className="flex items-center w-full">
               <TabButton
                 label="Variables"
                 active={activeTab === "variables"}
                 onClick={() => setActiveTab("variables")}
               />
-              <button
+              <TabButton
+                label="Pull Request"
+                active={activeTab === "pull-request"}
+                onClick={() => setActiveTab("pull-request")}
+              />
+              <TabButton
+                label="Github Settings"
+                active={activeTab === "settings"}
                 onClick={() => setActiveTab("settings")}
-                className={`
-                  p-2 rounded-sm
-                  ${
-                    activeTab === "settings"
-                      ? "opacity-100"
-                      : "opacity-60 hover:opacity-100"
-                  }
-                  transition-opacity
-                `}
-              >
-                <Gear size={16} />
-              </button>
+              />
             </div>
           ) : (
             <h1 className="text-sm font-medium">GitHub Variables Sync</h1>
@@ -147,20 +114,18 @@ export function App() {
 
       <div className="flex-1 overflow-auto">
         {activeTab === "settings" ? (
-          <SettingsForm initialSettings={settings} onSave={saveSettings} />
-        ) : showPRForm ? (
+          <SettingsForm
+            initialSettings={settings}
+            onSave={handleSaveSettings}
+          />
+        ) : activeTab === "pull-request" ? (
           <PullRequestForm
             settings={settings!}
-            onCancel={() => setShowPRForm(false)}
-            onSubmit={handleCreatePR}
-            loading={prLoading}
+            onCancel={() => setActiveTab("variables")}
+            content={JSON.stringify(exportData, null, 2)}
           />
         ) : hasRequiredSettings ? (
-          <VariablesDisplay
-            variables={variables}
-            loading={variablesLoading}
-            onCreatePR={() => setShowPRForm(true)}
-          />
+          <VariablesDisplay variables={variables} loading={variablesLoading} />
         ) : (
           <div className="p-4">
             <p className="text-sm opacity-50">

@@ -1,96 +1,59 @@
-/**
- * @fileoverview Basic JavaScript plugin storage functionality
- * @packageDocumentation
- */
+import type { StoredSettings, PartialCommitData } from "./types";
 
-import type { StoredSettings, CommitData } from "./types";
-
-const DEFAULT_COMMIT_DATA: CommitData = {
+const DEFAULT_COMMIT_DATA: PartialCommitData = {
   branch: "",
+  baseBranch: "main",
   message: "",
-  filename: "test.md",
+  filename: "variables.json",
   content: "",
 };
 
 const DEFAULT_SETTINGS: StoredSettings = {
   token: "",
-  organization: "gearsandcode",
-  repository: "docs",
-  label: "figma-plugin",
+  organization: "",
+  repository: "",
+  label: "",
   commitData: DEFAULT_COMMIT_DATA,
 };
 
-/**
- * Updates commitData with new values while preserving existing ones
- */
-function updateCommitData(
-  current: Partial<CommitData> | undefined,
-  updates: Partial<CommitData> | undefined
-): CommitData {
-  const currentData = {
-    branch: "",
-    message: "",
-    filename: "test.md",
-    content: "",
-  };
-
-  // Apply current values if they exist
-  if (current) {
-    if (current.branch) currentData.branch = current.branch;
-    if (current.message) currentData.message = current.message;
-    if (current.filename) currentData.filename = current.filename;
-    if (current.content) currentData.content = current.content;
-  }
-
-  // Apply updates if they exist
-  if (updates) {
-    if (updates.branch !== undefined) currentData.branch = updates.branch;
-    if (updates.message !== undefined) currentData.message = updates.message;
-    if (updates.filename !== undefined) currentData.filename = updates.filename;
-    if (updates.content !== undefined) currentData.content = updates.content;
-  }
-
-  return currentData;
-}
-
-/**
- * Updates settings with new values while preserving existing ones
- */
-function updateSettings(
-  current: StoredSettings,
-  updates: Partial<StoredSettings>
-): StoredSettings {
-  const newSettings = {
-    token: current.token,
-    organization: current.organization,
-    repository: current.repository,
-    label: current.label,
-    commitData: current.commitData,
-  };
-
-  if (updates.token !== undefined) newSettings.token = updates.token;
-  if (updates.organization !== undefined)
-    newSettings.organization = updates.organization;
-  if (updates.repository !== undefined)
-    newSettings.repository = updates.repository;
-  if (updates.label !== undefined) newSettings.label = updates.label;
-
-  newSettings.commitData = updateCommitData(
-    current.commitData,
-    updates.commitData
-  );
-
-  return newSettings;
-}
-
 export async function saveSettings(
-  settings: Partial<StoredSettings>
+  newSettings: Partial<StoredSettings>
 ): Promise<StoredSettings> {
   try {
     const currentSettings = await loadSettings();
-    const newSettings = updateSettings(currentSettings, settings);
-    await figma.clientStorage.setAsync("github-settings", newSettings);
-    return newSettings;
+
+    // Merge the new settings with current settings
+    const mergedSettings: StoredSettings = {
+      token: newSettings.token || currentSettings.token,
+      organization: newSettings.organization || currentSettings.organization,
+      repository: newSettings.repository || currentSettings.repository,
+      label: newSettings.label || currentSettings.label,
+      commitData: {
+        branch:
+          newSettings.commitData?.branch ||
+          currentSettings.commitData?.branch ||
+          DEFAULT_COMMIT_DATA.branch,
+        baseBranch:
+          newSettings.commitData?.baseBranch ||
+          currentSettings.commitData?.baseBranch ||
+          DEFAULT_COMMIT_DATA.baseBranch,
+        message:
+          newSettings.commitData?.message ||
+          currentSettings.commitData?.message ||
+          DEFAULT_COMMIT_DATA.message,
+        filename:
+          newSettings.commitData?.filename ||
+          currentSettings.commitData?.filename ||
+          DEFAULT_COMMIT_DATA.filename,
+        content:
+          newSettings.commitData?.content ||
+          currentSettings.commitData?.content ||
+          DEFAULT_COMMIT_DATA.content,
+      },
+    };
+
+    await figma.clientStorage.setAsync("github-settings", mergedSettings);
+    return mergedSettings;
   } catch (error) {
     console.error("Error in saveSettings:", error);
     throw error;
@@ -100,15 +63,25 @@ export async function saveSettings(
 export async function loadSettings(): Promise<StoredSettings> {
   try {
     const settings = await figma.clientStorage.getAsync("github-settings");
-
     if (!settings) {
       return DEFAULT_SETTINGS;
     }
 
-    return updateSettings(
-      DEFAULT_SETTINGS,
-      settings as Partial<StoredSettings>
-    );
+    // Ensure all fields exist with proper defaults
+    return {
+      token: settings.token || DEFAULT_SETTINGS.token,
+      organization: settings.organization || DEFAULT_SETTINGS.organization,
+      repository: settings.repository || DEFAULT_SETTINGS.repository,
+      label: settings.label || DEFAULT_SETTINGS.label,
+      commitData: {
+        branch: settings.commitData?.branch || DEFAULT_COMMIT_DATA.branch,
+        baseBranch:
+          settings.commitData?.baseBranch || DEFAULT_COMMIT_DATA.baseBranch,
+        message: settings.commitData?.message || DEFAULT_COMMIT_DATA.message,
+        filename: settings.commitData?.filename || DEFAULT_COMMIT_DATA.filename,
+        content: settings.commitData?.content || DEFAULT_COMMIT_DATA.content,
+      },
+    };
   } catch (error) {
     console.error("Error in loadSettings:", error);
     return DEFAULT_SETTINGS;

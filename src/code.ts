@@ -1,38 +1,5 @@
 import { saveSettings, loadSettings } from "./PluginStore";
 
-type FormattedValue = {
-  value: VariableValue | null;
-  referencedVariable?: string;
-};
-
-interface FormattedVariableData {
-  name: string;
-  value: string;
-  description?: string;
-  type: VariableResolvedDataType;
-}
-
-interface FormattedCollection {
-  collection: string;
-  variables: FormattedVariableData[];
-}
-
-interface ExportedVariable {
-  value: VariableValue | null;
-  type: VariableResolvedDataType;
-  description?: string;
-  scope: string;
-  referencedVariable?: string;
-}
-
-interface ExportedCollection {
-  [key: string]: ExportedVariable;
-}
-
-interface ExportData {
-  [key: string]: ExportedCollection;
-}
-
 const pluginDefaultWidth = 500;
 const pluginDefaultHeight = 600;
 const pluginMaxHeight = 1200;
@@ -44,6 +11,34 @@ figma.showUI(__html__, {
   title: "GitHub Variables Sync",
   themeColors: true,
 });
+
+interface FormattedVariable {
+  name: string;
+  displayValue: string;
+  resolvedValue?: string;
+  resolvedName?: string;
+  hexColor?: string;
+  type: VariableResolvedDataType;
+  description?: string;
+}
+
+interface FormattedCollection {
+  name: string;
+  variables: FormattedVariable[];
+}
+
+interface ExportVariable {
+  value: string;
+  type: VariableResolvedDataType;
+  description?: string;
+  resolvedFrom?: string;
+}
+
+interface ExportData {
+  [collectionName: string]: {
+    [variableName: string]: ExportVariable;
+  };
+}
 
 // Restore previous size
 async function initializeSize() {
@@ -57,224 +52,203 @@ async function initializeSize() {
   }
 }
 
-// Initialize size on startup
-initializeSize();
+async function resolveVariableAlias(alias: VariableAlias): Promise<{
+  value: VariableValue;
+  name: string;
+  resolvedType: VariableResolvedDataType;
+} | null> {
+  const variable = await figma.variables.getVariableByIdAsync(alias.id);
+  if (!variable) return null;
 
-// Convert RGB(A) to hex string
-function rgbToHex(color: RGB | RGBA): string {
+  const modeId = Object.keys(variable.valuesByMode)[0];
+  const value = variable.valuesByMode[modeId];
+
+  if (typeof value === "object" && "id" in value) {
+    return resolveVariableAlias(value);
+  }
+
+  return {
+    value,
+    name: variable.name,
+    resolvedType: variable.resolvedType,
+  };
+}
+
+function rgbaToHex(color: RGBA): string {
   const toHex = (n: number) =>
     Math.round(n * 255)
       .toString(16)
       .padStart(2, "0");
-  const hex = "#" + toHex(color.r) + toHex(color.g) + toHex(color.b);
-  return "a" in color ? hex + toHex(color.a) : hex;
+  const hex = `#${toHex(color.r)}${toHex(color.g)}${toHex(color.b)}`;
+  return color.a !== 1 ? `${hex}${toHex(color.a)}` : hex;
 }
 
-// Resolve variable alias to actual value
-function resolveVariableAlias(alias: VariableAlias): string {
-  const referencedVariable = figma.variables.getVariableById(alias.id);
-  if (!referencedVariable) return "Unknown reference";
-
-  const modes = Object.keys(referencedVariable.valuesByMode);
-  const modeId = modes[0];
-  const value = referencedVariable.valuesByMode[modeId];
-
-  return getDisplayValue(value, referencedVariable.resolvedType);
-}
-
-// Get display value for UI
-function getDisplayValue(
-  value: VariableValue,
-  type: VariableResolvedDataType
-): string {
-  if (value === null || value === undefined) return "null";
-
-  if (typeof value === "object" && "id" in value) {
-    return "Reference: " + value.id; // We'll resolve references separately
-  }
-
-  switch (type) {
-    case "COLOR": {
-      const color = value as RGB | RGBA;
-      return rgbToHex(color);
-    }
-    case "FLOAT":
-    case "STRING":
-      return String(value);
-    case "BOOLEAN":
-      return value ? "true" : "false";
-    default:
-      return JSON.stringify(value);
-  }
-}
-
-// Format variable value for export
 async function formatVariableValue(
-  value: VariableValue | null,
-  type: VariableResolvedDataType
-): Promise<FormattedValue> {
-  if (value === null || value === undefined) {
-    return { value: null };
-  }
+  variable: Variable,
+  value?: VariableValue,
+  resolvedType?: VariableResolvedDataType
+): Promise<{
+  displayValue: string;
+  resolvedValue?: string;
+  resolvedName?: string;
+  hexColor?: string;
+  type: VariableResolvedDataType;
+}> {
+  // If value and type are provided, use them directly (for resolved aliases)
+  const actualValue =
+    value || variable.valuesByMode[Object.keys(variable.valuesByMode)[0]];
+  const actualType = resolvedType || variable.resolvedType;
 
-  if (typeof value === "object" && "id" in value) {
-    const referencedVariable = await figma.variables.getVariableByIdAsync(
-      value.id
+  if (typeof actualValue === "object" && "id" in actualValue) {
+    const resolved = await resolveVariableAlias(actualValue);
+    if (!resolved)
+      return {
+        displayValue: "Unresolved reference",
+        type: actualType,
+      };
+
+    // Format the resolved value by passing it directly
+    const formattedResolved = await formatVariableValue(
+      variable,
+      resolved.value,
+      resolved.resolvedType
     );
+
     return {
-      value: value,
-      referencedVariable: referencedVariable
-        ? referencedVariable.name
-        : undefined,
+      displayValue: formattedResolved.displayValue,
+      resolvedValue: formattedResolved.displayValue,
+      resolvedName: resolved.name,
+      hexColor: formattedResolved.hexColor,
+      type: resolved.resolvedType,
     };
   }
 
-  return { value: value };
-}
-
-// Format single variable for response
-function formatVariable(variable: Variable): FormattedVariableData | null {
-  if (!variable || variable.remote) return null;
-
-  const modes = Object.keys(variable.valuesByMode);
-  const modeId = modes[0];
-  const value = variable.valuesByMode[modeId];
+  if (actualType === "COLOR") {
+    const color = actualValue as RGBA;
+    const hex = rgbaToHex(color);
+    return {
+      displayValue: hex,
+      hexColor: hex,
+      type: "COLOR",
+    };
+  }
 
   return {
-    name: variable.name,
-    value: getDisplayValue(value, variable.resolvedType),
-    description: variable.description || undefined,
-    type: variable.resolvedType,
+    displayValue: String(actualValue),
+    type: actualType,
   };
 }
 
-// Format variables for export
-async function formatVariablesForExport(
-  collections: readonly VariableCollection[]
-): Promise<ExportData> {
-  const result: ExportData = {};
+async function getAllFormattedVariables(): Promise<{
+  collections: FormattedCollection[];
+  exportData: ExportData;
+}> {
+  const collections = await figma.variables.getLocalVariableCollectionsAsync();
+  const formattedCollections: FormattedCollection[] = [];
 
   for (const collection of collections) {
-    const variables: ExportedCollection = {};
+    const variables: FormattedVariable[] = [];
 
     for (const id of collection.variableIds) {
       const variable = await figma.variables.getVariableByIdAsync(id);
       if (!variable || variable.remote) continue;
 
-      const modes = Object.keys(variable.valuesByMode);
-      const modeId = modes[0];
-      const formatted = await formatVariableValue(
-        variable.valuesByMode[modeId],
-        variable.resolvedType
-      );
+      try {
+        const formatted = await formatVariableValue(variable);
+        const formattedVariable: FormattedVariable = {
+          name: variable.name,
+          displayValue: formatted.displayValue,
+          resolvedValue: formatted.resolvedValue,
+          resolvedName: formatted.resolvedName,
+          hexColor: formatted.hexColor,
+          type: formatted.type,
+          description: variable.description || undefined,
+        };
+        variables.push(formattedVariable);
+      } catch (err) {
+        console.error(`Error formatting variable ${variable.name}:`, err);
+      }
+    }
 
+    if (variables.length > 0) {
+      formattedCollections.push({
+        name: collection.name,
+        variables: variables,
+      });
+    }
+  }
+
+  // Format export data
+  const exportData: ExportData = {};
+  for (const collection of formattedCollections) {
+    const variables: { [key: string]: ExportVariable } = {};
+    for (const variable of collection.variables) {
       variables[variable.name] = {
-        value: formatted.value,
-        type: variable.resolvedType,
-        description: variable.description || undefined,
-        scope: variable.scopes.join(", "),
-        referencedVariable: formatted.referencedVariable,
+        value: variable.displayValue,
+        type: variable.type,
+        description: variable.description,
+        resolvedFrom: variable.resolvedName,
       };
     }
-
-    if (Object.keys(variables).length > 0) {
-      result[collection.name] = variables;
-    }
+    exportData[collection.name] = variables;
   }
 
-  return result;
+  return { collections: formattedCollections, exportData };
 }
 
-async function getVariablesData(): Promise<{
-  variables: FormattedCollection[];
-  exportData: ExportData;
-}> {
-  try {
-    console.log("Starting to fetch collections...");
-    const collections =
-      await figma.variables.getLocalVariableCollectionsAsync();
-    console.log("Collections fetched:", collections.length);
+// Initialize size on startup
+initializeSize();
 
-    const variables: FormattedCollection[] = [];
-    const exportData: ExportData = {};
-
-    for (const collection of collections) {
-      console.log("Processing collection:", collection.name);
-      const formattedVariables: FormattedVariableData[] = [];
-      const exportedVariables: ExportedCollection = {};
-
-      for (const id of collection.variableIds) {
-        try {
-          console.log("Fetching variable:", id);
-          const variable = await figma.variables.getVariableByIdAsync(id);
-
-          if (!variable) {
-            console.log("Variable not found:", id);
-            continue;
-          }
-
-          if (variable.remote) {
-            console.log("Skipping remote variable:", variable.name);
-            continue;
-          }
-
-          console.log(
-            "Processing variable:",
-            variable.name,
-            variable.resolvedType
-          );
-          const modes = Object.keys(variable.valuesByMode);
-
-          if (modes.length === 0) {
-            console.log("No modes found for variable:", variable.name);
-            continue;
-          }
-
-          const modeId = modes[0];
-          const value = variable.valuesByMode[modeId];
-
-          // Format for UI display
-          formattedVariables.push({
-            name: variable.name,
-            value:
-              typeof value === "object" ? JSON.stringify(value) : String(value),
-            description: variable.description || undefined,
-            type: variable.resolvedType,
-          });
-
-          // Format for export
-          exportedVariables[variable.name] = {
-            value: value,
-            type: variable.resolvedType,
-            description: variable.description || undefined,
-            scope: variable.scopes.join(", "),
-            referencedVariable: undefined,
-          };
-        } catch (err) {
-          console.error("Error processing variable:", id, err);
-        }
-      }
-
-      if (formattedVariables.length > 0) {
-        variables.push({
-          collection: collection.name,
-          variables: formattedVariables,
-        });
-        exportData[collection.name] = exportedVariables;
-      }
-    }
-
-    console.log("Processing complete");
-    console.log("Collections processed:", variables.length);
-
-    return { variables, exportData };
-  } catch (error) {
-    console.error("Error in getVariablesData:", error);
-    throw error;
-  }
-}
+// color/green: #6a8924
 
 figma.ui.onmessage = async (msg) => {
+  if (msg.type === "load-group-states") {
+    try {
+      const states = await figma.clientStorage.getAsync(msg.key);
+      figma.ui.postMessage({
+        type: "group-states-loaded",
+        states,
+      });
+    } catch (error) {
+      console.error("Failed to load group states:", error);
+      figma.ui.postMessage({
+        type: "group-states-loaded",
+        states: {},
+      });
+    }
+  }
+
+  if (msg.type === "save-group-states") {
+    try {
+      await figma.clientStorage.setAsync(msg.key, msg.states);
+    } catch (error) {
+      console.error("Failed to save group states:", error);
+    }
+  }
+
+  if (msg.type === "clear-all-data") {
+    try {
+      // Clear all clientStorage
+      await figma.clientStorage.setAsync("github-settings", null);
+      await figma.clientStorage.setAsync("size", null);
+      // Add any other stored data keys here
+
+      // Clear document data if needed
+      // figma.root.setPluginData("key", "");
+
+      // Notify UI of success
+      figma.notify("All settings and stored data cleared");
+    } catch (err) {
+      console.error("Error clearing data:", err);
+      figma.notify("Error clearing data", { error: true });
+    }
+  }
+
+  if (msg.type === "notify") {
+    figma.notify(msg.message, { error: msg.error });
+    return;
+  }
+
   if (msg.type === "resize" && msg.size) {
     const w = Math.max(msg.size.w, pluginMinWidth);
     const h = Math.min(
@@ -294,29 +268,27 @@ figma.ui.onmessage = async (msg) => {
 
   if (msg.type === "get-variables") {
     try {
-      console.log("Starting variables request...");
-      const data = await getVariablesData();
-      console.log("Variables data retrieved successfully");
-
+      const result = await getAllFormattedVariables();
       figma.ui.postMessage({
         type: "variables-loaded",
-        variables: data.variables,
-        exportData: data.exportData,
+        variables: result.collections,
+        exportData: result.exportData,
       });
     } catch (error) {
       console.error("Error loading variables:", error);
-      figma.notify(
-        "Error loading variables: " +
-          (error instanceof Error ? error.message : String(error)),
-        { error: true }
-      );
+      figma.notify("Error loading variables", { error: true });
     }
   } else if (msg.type === "create-pr") {
     try {
-      const data = await getVariablesData();
-      const prData = Object.assign({}, msg.data, {
-        variablesJson: JSON.stringify(data.exportData, null, 2),
-      });
+      const result = await getAllFormattedVariables();
+      const prData = {
+        title: msg.data.title,
+        branch: msg.data.branch,
+        description: msg.data.description,
+        baseBranch: msg.data.baseBranch,
+        label: msg.data.label,
+        variablesJson: JSON.stringify(result.exportData, null, 2),
+      };
 
       figma.ui.postMessage({
         type: "create-pr-with-data",

@@ -1,77 +1,41 @@
-/**
- * @fileoverview Hook for managing GitHub settings with commit data persistence
- */
-
-import { useState, useEffect } from "react";
-import type { StoredSettings, CommitData } from "../types";
+import { StoredSettings } from "types";
 
 export function useGitHubSettings() {
-  const [settings, setSettings] = useState<StoredSettings | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      const msg = event.data.pluginMessage;
-      if (msg.type === "settings-loaded") {
-        setSettings(msg.settings);
-        setLoading(false);
-      }
-    };
-
-    window.addEventListener("message", handleMessage);
-    parent.postMessage({ pluginMessage: { type: "load-settings" } }, "*");
-
-    return () => window.removeEventListener("message", handleMessage);
-  }, []);
-
-  const saveSettings = async (newSettings: Partial<StoredSettings>) => {
-    // Merge with existing commit data if it exists
-    const updatedSettings = {
-      ...newSettings,
-      commitData: {
-        ...(settings?.commitData || {}),
-        ...(newSettings.commitData || {}),
-      },
-    };
-
+  function updateCommitData(data: { branch?: string; baseBranch?: string }) {
     parent.postMessage(
       {
         pluginMessage: {
           type: "save-settings",
-          settings: updatedSettings,
+          settings: {
+            // Update both legacy and new locations
+            branch: data.branch,
+            baseBranch: data.baseBranch,
+            commitData: data,
+          },
         },
       },
       "*"
     );
+  }
 
-    // Update local state optimistically
-    setSettings(
-      (prev) =>
-        ({
-          ...(prev || {}),
-          ...updatedSettings,
-        } as StoredSettings)
-    );
-  };
+  function loadSettings() {
+    parent.postMessage({ pluginMessage: { type: "load-settings" } }, "*");
+  }
 
-  // Helper function to update commit data
-  const updateCommitData = async (commitData: Partial<CommitData>) => {
-    if (!settings) return;
-
-    const updatedSettings: StoredSettings = {
-      ...settings,
-      commitData: {
-        ...settings.commitData,
-        ...commitData,
+  function saveSettings(newSettings: Partial<StoredSettings>) {
+    parent.postMessage(
+      {
+        pluginMessage: {
+          type: "save-settings",
+          settings: newSettings,
+        },
       },
-    };
-
-    await saveSettings(updatedSettings);
-  };
+      "*"
+    );
+  }
 
   return {
-    settings,
-    loading,
+    loadSettings,
     saveSettings,
     updateCommitData,
   };
