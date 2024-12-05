@@ -1,4 +1,4 @@
-import { StoredSettings } from "types";
+import { StoredSettings } from "../types";
 
 export function useGitHubSettings() {
   function updateCommitData(data: { branch?: string; baseBranch?: string }) {

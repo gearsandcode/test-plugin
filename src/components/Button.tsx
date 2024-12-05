@@ -1,7 +1,3 @@
-/**
- * @fileoverview Button component matching Figma's theming
- */
-
 type ButtonVariant = "primary" | "secondary" | "danger";
 
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {

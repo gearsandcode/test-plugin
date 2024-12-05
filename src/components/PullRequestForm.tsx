@@ -1,17 +1,14 @@
-/**
- * @fileoverview PR form with existing PR detection and simplified commit flow
- */
-import React, { useState, useEffect } from "react";
-import { useGitHubBranches } from "../../hooks/useGitHubBranches";
-import { useGitHubSettings } from "../../hooks/useGitHubSettings";
+import { useState, useEffect } from "react";
+import { useGitHubBranches } from "../hooks/useGitHubBranches";
+import { useGitHubSettings } from "../hooks/useGitHubSettings";
 import { ArrowSquareOut, GitPullRequest } from "@phosphor-icons/react";
-import { Alert } from "../Alert";
-import { Button } from "../Button";
-import { BranchSelector } from "../BranchSelector";
-import { notify } from "../../utils";
-import type { ExistingPR, StoredSettings } from "../../types";
-import { GitHubService } from "../../services/github";
-import { SuccessDialog } from "../SuccessDialog";
+import { Alert } from "./Alert";
+import { Button } from "./Button";
+import { BranchSelector } from "./BranchSelector";
+import { notify } from "../utils";
+import type { ExistingPR, StoredSettings } from "../types";
+import { GitHubService } from "../services/github";
+import { SuccessDialog } from "./SuccessDialog";
 
 interface CommitFormData {
   commitMessage: string;
@@ -152,9 +149,6 @@ export function PullRequestForm({
   return (
     <>
       <div className="p-4 space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-medium">Commit Changes</h2>
-        </div>
         {checkingPR && (
           <Alert
             type="loading"
@@ -248,7 +242,7 @@ export function PullRequestForm({
 
           <div className="flex items-center justify-end space-x-4">
             <Button type="submit" loading={loading}>
-              Commit Changes
+              Commit changes
             </Button>
           </div>
         </form>

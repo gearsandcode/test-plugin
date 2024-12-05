@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { ArrowClockwise } from "@phosphor-icons/react";
 import { Input, Button, Alert } from "./";
 import type { StoredSettings } from "../types";
 

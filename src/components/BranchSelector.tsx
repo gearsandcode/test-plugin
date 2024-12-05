@@ -1,5 +1,5 @@
-import { GitBranch } from "@phosphor-icons/react";
 import type { BranchSelectionMode } from "../types";
+import { GitBranch } from "@phosphor-icons/react";
 
 interface BranchSelectorProps {
   label: string;

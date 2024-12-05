@@ -4,19 +4,17 @@ import {
   SettingsForm,
   TabButton,
   ResizeHandle,
-  VariablesDisplay,
+  PullRequestForm,
+  VariablesTableView,
 } from "./components";
-import { PullRequestForm } from "./components";
 import { useGitHubSettings } from "./hooks/useGitHubSettings";
-import type { StoredSettings } from "./types";
-import type { VariableCollection } from "./components/VariablesDisplay";
+import type { StoredSettings, VariableCollection } from "./types";
 import { notify } from "./utils";
 
 export function App() {
   const [activeTab, setActiveTab] = useState<
-    "variables" | "pull-request" | "settings"
+    "variables" | "commit-changes" | "settings"
   >("variables");
-  const [showPRForm, setShowPRForm] = useState(false);
   const [variables, setVariables] = useState<VariableCollection[]>([]);
   const [exportData, setExportData] = useState<any>(null);
   const [variablesLoading, setVariablesLoading] = useState(true);
@@ -24,7 +22,6 @@ export function App() {
   const [loading, setLoading] = useState(true);
 
   const settingsManager = useGitHubSettings();
-
   const hasRequiredSettings =
     settings?.token && settings?.organization && settings?.repository;
 
@@ -73,6 +70,18 @@ export function App() {
     }
   };
 
+  const handleRefreshVariables = () => {
+    if (!hasRequiredSettings) return;
+
+    setVariablesLoading(true);
+    parent.postMessage(
+      {
+        pluginMessage: { type: "get-variables" },
+      },
+      "*"
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -95,9 +104,9 @@ export function App() {
                 onClick={() => setActiveTab("variables")}
               />
               <TabButton
-                label="Pull Request"
-                active={activeTab === "pull-request"}
-                onClick={() => setActiveTab("pull-request")}
+                label="Commit changes"
+                active={activeTab === "commit-changes"}
+                onClick={() => setActiveTab("commit-changes")}
               />
               <TabButton
                 label="Github Settings"
@@ -118,14 +127,18 @@ export function App() {
             initialSettings={settings}
             onSave={handleSaveSettings}
           />
-        ) : activeTab === "pull-request" ? (
+        ) : activeTab === "commit-changes" ? (
           <PullRequestForm
             settings={settings!}
             onCancel={() => setActiveTab("variables")}
             content={JSON.stringify(exportData, null, 2)}
           />
         ) : hasRequiredSettings ? (
-          <VariablesDisplay variables={variables} loading={variablesLoading} />
+          <VariablesTableView
+            variables={variables}
+            loading={variablesLoading}
+            onRefresh={handleRefreshVariables}
+          />
         ) : (
           <div className="p-4">
             <p className="text-sm opacity-50">
@@ -134,7 +147,6 @@ export function App() {
           </div>
         )}
       </div>
-
       <ResizeHandle />
     </div>
   );

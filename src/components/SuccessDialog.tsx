@@ -4,8 +4,7 @@
  */
 import { ArrowSquareOut, GitPullRequest } from "@phosphor-icons/react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
-import { notify } from "../utils";
-import { ExistingPR } from "types";
+import { ExistingPR } from "../types";
 
 interface SuccessDialogProps {
   isOpen: boolean;

@@ -1,4 +1,3 @@
-// types/index.ts
 export interface CommitData {
   branch: string;
   baseBranch: string;
@@ -80,15 +79,57 @@ export interface ViewProps {
   onFormChange: (field: keyof PRFormData, value: string) => void;
 }
 
-export interface CreateUpdateViewProps {
-  mode: CreateUpdateMode;
-  formData: PRFormData;
-  errors: Partial<Record<keyof PRFormData, string>>;
-  branches: string[];
-  branchesLoading: boolean;
-  onCancel: () => void;
-  onSubmit: (e: React.FormEvent) => void;
-  onBranchChange: (type: "base" | "update", value: string) => Promise<void>;
-  onFormChange: (field: keyof PRFormData, value: string) => void;
-  loading: boolean;
+export interface VariableValue {
+  value: string;
+  displayValue: string;
+  resolvedName?: string;
+  resolvedValue?: string;
+  hexColor?: string;
+  type: string;
+}
+
+export interface Variable {
+  name: string;
+  type: string;
+  description?: string;
+  modes: Record<string, VariableValue>;
+}
+
+export interface VariableCollection {
+  name: string;
+  modes: string[];
+  variables: Variable[];
+}
+
+export type FormattedCollection = VariableCollection;
+
+export interface ModeValue {
+  displayValue?: string;
+  value: string;
+  resolvedValue?: string;
+  resolvedName?: string;
+  hexColor?: string;
+  type: string;
+}
+export interface NestedGroup {
+  name: string;
+  fullPath: string;
+  variables: Variable[];
+  children: Map<string, NestedGroup>;
+  isOpen?: boolean;
+}
+
+/**
+ * Represents a group of variables sharing the same base name
+ */
+export interface GroupedVariables {
+  /**
+   * Name of the group (base name before first "/")
+   */
+  name: string;
+
+  /**
+   * Array of variables in this group
+   */
+  variables: Variable[];
 }

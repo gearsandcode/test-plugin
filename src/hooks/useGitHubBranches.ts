@@ -1,6 +1,3 @@
-/**
- * File: src/hooks/useGitHubBranches.ts
- */
 import { useState, useEffect } from "react";
 import type { StoredSettings } from "../types";
 

@@ -1,7 +1,3 @@
-/**
- * @fileoverview src/components/index.ts
- * Export all components
- */
 export { Alert } from "./Alert";
 export { Button } from "./Button";
 export { BranchSelector } from "./BranchSelector";
@@ -26,6 +22,5 @@ export {
   DialogTitle,
   DialogDescription,
 } from "./ui/dialog";
-export { VariablesDisplay } from "./VariablesDisplay";
-export { PullRequestForm } from "./PullRequest/PullRequestForm";
-export { Select } from "./Select";
+export { PullRequestForm } from "./PullRequestForm";
+export { VariablesTableView } from "./VariablesTableView";

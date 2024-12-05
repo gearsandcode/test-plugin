@@ -14,22 +14,35 @@ figma.showUI(__html__, {
 
 interface FormattedVariable {
   name: string;
-  displayValue: string;
+  displayValue?: string;
+  value?: string;
   resolvedValue?: string;
   resolvedName?: string;
   hexColor?: string;
-  type: VariableResolvedDataType;
+  type: string;
   description?: string;
+  modes: Record<
+    string,
+    {
+      displayValue: string;
+      value: string;
+      resolvedValue?: string;
+      resolvedName?: string;
+      hexColor?: string;
+      type: string;
+    }
+  >;
 }
 
 interface FormattedCollection {
   name: string;
+  modes: string[];
   variables: FormattedVariable[];
 }
 
 interface ExportVariable {
   value: string;
-  type: VariableResolvedDataType;
+  type: string;
   description?: string;
   resolvedFrom?: string;
 }
@@ -53,9 +66,10 @@ async function initializeSize() {
 }
 
 async function resolveVariableAlias(alias: VariableAlias): Promise<{
-  value: VariableValue;
+  value: any;
   name: string;
-  resolvedType: VariableResolvedDataType;
+  resolvedType: string;
+  resolvedValue?: string;
 } | null> {
   const variable = await figma.variables.getVariableByIdAsync(alias.id);
   if (!variable) return null;
@@ -67,10 +81,17 @@ async function resolveVariableAlias(alias: VariableAlias): Promise<{
     return resolveVariableAlias(value);
   }
 
+  // For colors, convert to hex
+  let resolvedValue = undefined;
+  if (variable.resolvedType === "COLOR") {
+    resolvedValue = rgbaToHex(value as RGBA);
+  }
+
   return {
     value,
     name: variable.name,
     resolvedType: variable.resolvedType,
+    resolvedValue,
   };
 }
 
@@ -83,62 +104,6 @@ function rgbaToHex(color: RGBA): string {
   return color.a !== 1 ? `${hex}${toHex(color.a)}` : hex;
 }
 
-async function formatVariableValue(
-  variable: Variable,
-  value?: VariableValue,
-  resolvedType?: VariableResolvedDataType
-): Promise<{
-  displayValue: string;
-  resolvedValue?: string;
-  resolvedName?: string;
-  hexColor?: string;
-  type: VariableResolvedDataType;
-}> {
-  // If value and type are provided, use them directly (for resolved aliases)
-  const actualValue =
-    value || variable.valuesByMode[Object.keys(variable.valuesByMode)[0]];
-  const actualType = resolvedType || variable.resolvedType;
-
-  if (typeof actualValue === "object" && "id" in actualValue) {
-    const resolved = await resolveVariableAlias(actualValue);
-    if (!resolved)
-      return {
-        displayValue: "Unresolved reference",
-        type: actualType,
-      };
-
-    // Format the resolved value by passing it directly
-    const formattedResolved = await formatVariableValue(
-      variable,
-      resolved.value,
-      resolved.resolvedType
-    );
-
-    return {
-      displayValue: formattedResolved.displayValue,
-      resolvedValue: formattedResolved.displayValue,
-      resolvedName: resolved.name,
-      hexColor: formattedResolved.hexColor,
-      type: resolved.resolvedType,
-    };
-  }
-
-  if (actualType === "COLOR") {
-    const color = actualValue as RGBA;
-    const hex = rgbaToHex(color);
-    return {
-      displayValue: hex,
-      hexColor: hex,
-      type: "COLOR",
-    };
-  }
-
-  return {
-    displayValue: String(actualValue),
-    type: actualType,
-  };
-}
-
 async function getAllFormattedVariables(): Promise<{
   collections: FormattedCollection[];
   exportData: ExportData;
@@ -147,6 +112,10 @@ async function getAllFormattedVariables(): Promise<{
   const formattedCollections: FormattedCollection[] = [];
 
   for (const collection of collections) {
+    console.log("Processing collection:", collection.name, {
+      modes: collection.modes,
+    });
+
     const variables: FormattedVariable[] = [];
 
     for (const id of collection.variableIds) {
@@ -154,16 +123,60 @@ async function getAllFormattedVariables(): Promise<{
       if (!variable || variable.remote) continue;
 
       try {
-        const formatted = await formatVariableValue(variable);
+        // Create a modes object for this variable
+        const variableModes: Record<
+          string,
+          {
+            displayValue: string;
+            value: string;
+            resolvedValue?: string;
+            resolvedName?: string;
+            hexColor?: string;
+            type: string;
+          }
+        > = {};
+
+        // Process each mode
+        for (const mode of collection.modes) {
+          const value = variable.valuesByMode[mode.modeId];
+
+          if (typeof value === "object" && "id" in value) {
+            const resolved = await resolveVariableAlias(value);
+            if (resolved) {
+              variableModes[mode.name] = {
+                value: String(resolved.value),
+                displayValue: resolved.name,
+                resolvedName: resolved.name,
+                resolvedValue: resolved.resolvedValue, // This will contain the hex value for colors
+                type: resolved.resolvedType,
+              };
+            }
+          } else {
+            if (variable.resolvedType === "COLOR") {
+              const hex = rgbaToHex(value as RGBA);
+              variableModes[mode.name] = {
+                value: hex,
+                displayValue: hex,
+                resolvedValue: hex,
+                type: "COLOR",
+              };
+            } else {
+              variableModes[mode.name] = {
+                value: String(value),
+                displayValue: String(value),
+                type: variable.resolvedType,
+              };
+            }
+          }
+        }
+
         const formattedVariable: FormattedVariable = {
           name: variable.name,
-          displayValue: formatted.displayValue,
-          resolvedValue: formatted.resolvedValue,
-          resolvedName: formatted.resolvedName,
-          hexColor: formatted.hexColor,
-          type: formatted.type,
+          type: variable.resolvedType,
           description: variable.description || undefined,
+          modes: variableModes,
         };
+
         variables.push(formattedVariable);
       } catch (err) {
         console.error(`Error formatting variable ${variable.name}:`, err);
@@ -173,6 +186,7 @@ async function getAllFormattedVariables(): Promise<{
     if (variables.length > 0) {
       formattedCollections.push({
         name: collection.name,
+        modes: collection.modes.map((m) => m.name),
         variables: variables,
       });
     }
@@ -184,7 +198,7 @@ async function getAllFormattedVariables(): Promise<{
     const variables: { [key: string]: ExportVariable } = {};
     for (const variable of collection.variables) {
       variables[variable.name] = {
-        value: variable.displayValue,
+        value: variable.value || variable.displayValue || "",
         type: variable.type,
         description: variable.description,
         resolvedFrom: variable.resolvedName,
@@ -269,6 +283,7 @@ figma.ui.onmessage = async (msg) => {
   if (msg.type === "get-variables") {
     try {
       const result = await getAllFormattedVariables();
+      console.log("Variables loaded:", result);
       figma.ui.postMessage({
         type: "variables-loaded",
         variables: result.collections,
