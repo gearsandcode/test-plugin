@@ -24,3 +24,4 @@ export {
 } from "./ui/dialog";
 export { PullRequestForm } from "./PullRequestForm";
 export { VariablesTableView } from "./VariablesTableView";
+export { JSONPreview } from "./JSONPreview";

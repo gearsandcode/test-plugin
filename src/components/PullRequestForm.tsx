@@ -9,6 +9,7 @@ import { notify } from "../utils";
 import type { ExistingPR, StoredSettings } from "../types";
 import { GitHubService } from "../services/github";
 import { SuccessDialog } from "./SuccessDialog";
+import { JSONPreview } from "./JSONPreview";
 
 interface CommitFormData {
   commitMessage: string;
@@ -97,7 +98,7 @@ export function PullRequestForm({
       await github.commitChanges({
         branch: formData.updateBranch,
         message: formData.commitMessage,
-        content: content,
+        content,
       });
 
       await updateCommitData({
@@ -189,6 +190,8 @@ export function PullRequestForm({
             }
           />
         )}
+
+        <JSONPreview content={content} />
 
         <form onSubmit={handleCommit} className="space-y-4">
           <div>

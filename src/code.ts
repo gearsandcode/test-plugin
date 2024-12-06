@@ -15,7 +15,7 @@ figma.showUI(__html__, {
 interface FormattedVariable {
   name: string;
   displayValue?: string;
-  value?: string;
+  value?: VariableAlias | string;
   resolvedValue?: string;
   resolvedName?: string;
   hexColor?: string;
@@ -25,7 +25,7 @@ interface FormattedVariable {
     string,
     {
       displayValue: string;
-      value: string;
+      value: VariableAlias | string;
       resolvedValue?: string;
       resolvedName?: string;
       hexColor?: string;
@@ -41,16 +41,21 @@ interface FormattedCollection {
 }
 
 interface ExportVariable {
-  value: string;
-  type: string;
-  description?: string;
-  resolvedFrom?: string;
+  $value: string;
+  $type: string;
+  $description?: string;
+  $resolvedFrom?: string;
 }
 
+interface ExportModeData {
+  [variableName: string]: ExportVariable;
+}
 interface ExportData {
-  [collectionName: string]: {
-    [variableName: string]: ExportVariable;
-  };
+  [collectionName: string]:
+    | {
+        [modeName: string]: ExportModeData;
+      }
+    | ExportModeData;
 }
 
 // Restore previous size
@@ -128,7 +133,7 @@ async function getAllFormattedVariables(): Promise<{
           string,
           {
             displayValue: string;
-            value: string;
+            value: VariableAlias | string;
             resolvedValue?: string;
             resolvedName?: string;
             hexColor?: string;
@@ -144,7 +149,7 @@ async function getAllFormattedVariables(): Promise<{
             const resolved = await resolveVariableAlias(value);
             if (resolved) {
               variableModes[mode.name] = {
-                value: String(resolved.value),
+                value: value || resolved.value,
                 displayValue: resolved.name,
                 resolvedName: resolved.name,
                 resolvedValue: resolved.resolvedValue, // This will contain the hex value for colors
@@ -162,8 +167,8 @@ async function getAllFormattedVariables(): Promise<{
               };
             } else {
               variableModes[mode.name] = {
-                value: String(value),
-                displayValue: String(value),
+                value: value.toString(),
+                displayValue: value.toString(),
                 type: variable.resolvedType,
               };
             }
@@ -195,19 +200,77 @@ async function getAllFormattedVariables(): Promise<{
   // Format export data
   const exportData: ExportData = {};
   for (const collection of formattedCollections) {
-    const variables: { [key: string]: ExportVariable } = {};
-    for (const variable of collection.variables) {
-      variables[variable.name] = {
-        value: variable.value || variable.displayValue || "",
-        type: variable.type,
-        description: variable.description,
-        resolvedFrom: variable.resolvedName,
-      };
+    // Initialize collection
+    exportData[collection.name] = {};
+
+    // Check if collection has modes
+    if (collection.modes.length > 1) {
+      // Create an entry for each mode
+      for (const mode of collection.modes) {
+        const modeVariables: { [key: string]: ExportVariable } = {};
+
+        // Process each variable for this mode
+        for (const variable of collection.variables) {
+          const modeValue = variable.modes[mode];
+          if (modeValue) {
+            const variableData: ExportVariable = {
+              $value:
+                modeValue.resolvedValue ||
+                (typeof modeValue.value === "string"
+                  ? modeValue.value
+                  : JSON.stringify(modeValue.value)),
+              $type: variable.type,
+            };
+
+            // Only add optional fields if they exist
+            if (variable.description) {
+              variableData.$description = variable.description;
+            }
+            if (variable.resolvedName) {
+              variableData.$resolvedFrom = variable.resolvedName;
+            }
+
+            modeVariables[variable.name] = variableData;
+          }
+        }
+
+        // Add mode variables directly to collection
+        exportData[collection.name][mode] = modeVariables;
+      }
+    } else {
+      // No modes - use flat structure
+      const collectionVariables: { [key: string]: ExportVariable } = {};
+
+      for (const variable of collection.variables) {
+        const modeValue = Object.values(variable.modes)[0];
+        const variableData: ExportVariable = {
+          $value:
+            modeValue.resolvedValue ||
+            (typeof modeValue.value === "string"
+              ? modeValue.value
+              : JSON.stringify(modeValue.value)),
+          $type: variable.type,
+        };
+
+        // Only add optional fields if they exist
+        if (variable.description) {
+          variableData.$description = variable.description;
+        }
+        if (variable.resolvedName) {
+          variableData.$resolvedFrom = variable.resolvedName;
+        }
+
+        collectionVariables[variable.name] = variableData;
+      }
+
+      exportData[collection.name] = collectionVariables;
     }
-    exportData[collection.name] = variables;
   }
 
-  return { collections: formattedCollections, exportData };
+  return {
+    collections: formattedCollections,
+    exportData: exportData,
+  };
 }
 
 // Initialize size on startup
