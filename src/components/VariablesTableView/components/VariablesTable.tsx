@@ -54,6 +54,10 @@ export function VariablesTable({
                 {vars.map((variable) => (
                   <VariableRow
                     key={variable.name}
+                    hiddenFromPublishing={
+                      variable.hiddenFromPublishing ||
+                      collection.name.startsWith("_")
+                    }
                     variable={variable}
                     modes={collection.modes}
                   />
@@ -71,6 +75,10 @@ export function VariablesTable({
             {selectedGroupVariables.map((variable) => (
               <VariableRow
                 key={variable.name}
+                hiddenFromPublishing={
+                  variable.hiddenFromPublishing ||
+                  collection.name.startsWith("_")
+                }
                 variable={variable}
                 modes={collection.modes}
               />

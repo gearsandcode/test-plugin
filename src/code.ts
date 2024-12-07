@@ -1,4 +1,5 @@
 import { saveSettings, loadSettings } from "./PluginStore";
+import { LocalVariable } from "@figma/rest-api-spec";
 
 const pluginDefaultWidth = 500;
 const pluginDefaultHeight = 600;
@@ -12,15 +13,14 @@ figma.showUI(__html__, {
   themeColors: true,
 });
 
-interface FormattedVariable {
+interface FormattedVariable extends LocalVariable {
   name: string;
   displayValue?: string;
-  value?: VariableAlias | string;
   resolvedValue?: string;
   resolvedName?: string;
   hexColor?: string;
   type: string;
-  description?: string;
+  description: string;
   modes: Record<
     string,
     {
@@ -32,6 +32,15 @@ interface FormattedVariable {
       type: string;
     }
   >;
+}
+
+interface VariableMode {
+  displayValue: string;
+  value: VariableAlias | string;
+  resolvedValue?: string;
+  resolvedName?: string;
+  hexColor?: string;
+  type: string;
 }
 
 interface FormattedCollection {
@@ -109,6 +118,38 @@ function rgbaToHex(color: RGBA): string {
   return color.a !== 1 ? `${hex}${toHex(color.a)}` : hex;
 }
 
+// Factory for creating variable data while keeping existing types
+function createVariableData(
+  variable: FormattedVariable,
+  modeValue: VariableMode
+): ExportVariable {
+  const variableData: ExportVariable = {
+    $value:
+      modeValue.resolvedValue ||
+      (typeof modeValue.value === "string"
+        ? modeValue.value
+        : JSON.stringify(modeValue.value)),
+    $type: variable.type,
+  };
+
+  if (variable.description) {
+    variableData.$description = variable.description;
+  }
+  if (variable.resolvedName) {
+    variableData.$resolvedFrom = variable.resolvedName;
+  }
+
+  return variableData;
+}
+
+// Utility function to check if variable should be hidden
+function isHiddenVariable(
+  variable: FormattedVariable,
+  collection: FormattedCollection
+): boolean {
+  return variable.hiddenFromPublishing || collection.name.startsWith("_");
+}
+
 async function getAllFormattedVariables(): Promise<{
   collections: FormattedCollection[];
   exportData: ExportData;
@@ -117,10 +158,6 @@ async function getAllFormattedVariables(): Promise<{
   const formattedCollections: FormattedCollection[] = [];
 
   for (const collection of collections) {
-    console.log("Processing collection:", collection.name, {
-      modes: collection.modes,
-    });
-
     const variables: FormattedVariable[] = [];
 
     for (const id of collection.variableIds) {
@@ -128,7 +165,6 @@ async function getAllFormattedVariables(): Promise<{
       if (!variable || variable.remote) continue;
 
       try {
-        // Create a modes object for this variable
         const variableModes: Record<
           string,
           {
@@ -141,7 +177,6 @@ async function getAllFormattedVariables(): Promise<{
           }
         > = {};
 
-        // Process each mode
         for (const mode of collection.modes) {
           const value = variable.valuesByMode[mode.modeId];
 
@@ -153,7 +188,7 @@ async function getAllFormattedVariables(): Promise<{
                 displayValue: resolved.name,
                 resolvedName: resolved.name,
                 resolvedValue: resolved.resolvedValue, // This will contain the hex value for colors
-                type: resolved.resolvedType,
+                type: resolved.resolvedType || "",
               };
             }
           } else {
@@ -169,7 +204,7 @@ async function getAllFormattedVariables(): Promise<{
               variableModes[mode.name] = {
                 value: value.toString(),
                 displayValue: value.toString(),
-                type: variable.resolvedType,
+                type: variable.resolvedType || "",
               };
             }
           }
@@ -177,9 +212,20 @@ async function getAllFormattedVariables(): Promise<{
 
         const formattedVariable: FormattedVariable = {
           name: variable.name,
-          type: variable.resolvedType,
-          description: variable.description || undefined,
+          type: variable.resolvedType || "",
+          description: variable.description || "",
           modes: variableModes,
+          id: variable.id,
+          key: variable.key,
+          variableCollectionId: variable.variableCollectionId,
+          resolvedType: variable.resolvedType,
+          valuesByMode: variable.valuesByMode as {
+            [key: string]: string | number | boolean | RGBA | VariableAlias;
+          },
+          remote: variable.remote,
+          hiddenFromPublishing: variable.hiddenFromPublishing,
+          scopes: variable.scopes,
+          codeSyntax: variable.codeSyntax,
         };
 
         variables.push(formattedVariable);
@@ -197,73 +243,71 @@ async function getAllFormattedVariables(): Promise<{
     }
   }
 
-  // Format export data
   const exportData: ExportData = {};
   for (const collection of formattedCollections) {
-    // Initialize collection
-    exportData[collection.name] = {};
+    const hiddenCollection = collection.name.startsWith("_");
 
-    // Check if collection has modes
+    if (!hiddenCollection) {
+      exportData[collection.name] = {};
+    }
+
     if (collection.modes.length > 1) {
-      // Create an entry for each mode
       for (const mode of collection.modes) {
         const modeVariables: { [key: string]: ExportVariable } = {};
 
-        // Process each variable for this mode
         for (const variable of collection.variables) {
+          const isHidden = isHiddenVariable(variable, collection);
           const modeValue = variable.modes[mode];
-          if (modeValue) {
-            const variableData: ExportVariable = {
-              $value:
-                modeValue.resolvedValue ||
-                (typeof modeValue.value === "string"
-                  ? modeValue.value
-                  : JSON.stringify(modeValue.value)),
-              $type: variable.type,
-            };
 
-            // Only add optional fields if they exist
-            if (variable.description) {
-              variableData.$description = variable.description;
-            }
-            if (variable.resolvedName) {
-              variableData.$resolvedFrom = variable.resolvedName;
-            }
-
-            modeVariables[variable.name] = variableData;
+          if (modeValue && !isHidden) {
+            modeVariables[variable.name] = createVariableData(
+              variable,
+              modeValue
+            );
           }
         }
 
-        // Add mode variables directly to collection
-        exportData[collection.name][mode] = modeVariables;
+        if (!hiddenCollection) {
+          exportData[collection.name][mode] = modeVariables;
+        }
+      }
+      for (const mode of collection.modes) {
+        const modeVariables: { [key: string]: ExportVariable } = {};
+
+        for (const variable of collection.variables) {
+          const isHidden = isHiddenVariable(variable, collection);
+          const modeValue = variable.modes[mode];
+
+          if (modeValue && !isHidden) {
+            modeVariables[variable.name] = createVariableData(
+              variable,
+              modeValue
+            );
+          }
+        }
+
+        if (!hiddenCollection) {
+          exportData[collection.name][mode] = modeVariables;
+        }
       }
     } else {
-      // No modes - use flat structure
       const collectionVariables: { [key: string]: ExportVariable } = {};
 
       for (const variable of collection.variables) {
+        const isHidden = isHiddenVariable(variable, collection);
         const modeValue = Object.values(variable.modes)[0];
-        const variableData: ExportVariable = {
-          $value:
-            modeValue.resolvedValue ||
-            (typeof modeValue.value === "string"
-              ? modeValue.value
-              : JSON.stringify(modeValue.value)),
-          $type: variable.type,
-        };
 
-        // Only add optional fields if they exist
-        if (variable.description) {
-          variableData.$description = variable.description;
+        if (modeValue && !isHidden) {
+          collectionVariables[variable.name] = createVariableData(
+            variable,
+            modeValue
+          );
         }
-        if (variable.resolvedName) {
-          variableData.$resolvedFrom = variable.resolvedName;
-        }
-
-        collectionVariables[variable.name] = variableData;
       }
 
-      exportData[collection.name] = collectionVariables;
+      if (!hiddenCollection) {
+        exportData[collection.name] = collectionVariables;
+      }
     }
   }
 
@@ -275,8 +319,6 @@ async function getAllFormattedVariables(): Promise<{
 
 // Initialize size on startup
 initializeSize();
-
-// color/green: #6a8924
 
 figma.ui.onmessage = async (msg) => {
   if (msg.type === "load-group-states") {
@@ -305,15 +347,9 @@ figma.ui.onmessage = async (msg) => {
 
   if (msg.type === "clear-all-data") {
     try {
-      // Clear all clientStorage
       await figma.clientStorage.setAsync("github-settings", null);
       await figma.clientStorage.setAsync("size", null);
-      // Add any other stored data keys here
 
-      // Clear document data if needed
-      // figma.root.setPluginData("key", "");
-
-      // Notify UI of success
       figma.notify("All settings and stored data cleared");
     } catch (err) {
       console.error("Error clearing data:", err);
@@ -346,7 +382,6 @@ figma.ui.onmessage = async (msg) => {
   if (msg.type === "get-variables") {
     try {
       const result = await getAllFormattedVariables();
-      console.log("Variables loaded:", result);
       figma.ui.postMessage({
         type: "variables-loaded",
         variables: result.collections,

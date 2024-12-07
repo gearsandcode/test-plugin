@@ -1,7 +1,3 @@
-/**
- * @fileoverview src/components/ui/dialog.tsx
- * Base dialog components following shadcn/ui pattern
- */
 import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 

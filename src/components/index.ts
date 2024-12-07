@@ -21,7 +21,7 @@ export {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from "./ui/dialog";
+} from "./ui/Dialog";
 export { PullRequestForm } from "./PullRequestForm";
 export { VariablesTableView } from "./VariablesTableView";
 export { JSONPreview } from "./JSONPreview";

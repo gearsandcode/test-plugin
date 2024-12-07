@@ -3,7 +3,7 @@
  * Success dialog shown after commit
  */
 import { ArrowSquareOut, GitPullRequest } from "@phosphor-icons/react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/Dialog";
 import { ExistingPR } from "../types";
 
 interface SuccessDialogProps {

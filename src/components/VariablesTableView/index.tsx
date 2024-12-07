@@ -198,11 +198,6 @@ export function VariablesTableView({
     if (currentCollection?.variables) {
       const newGroups = createNestedGroups(currentCollection.variables);
       setGroups(newGroups);
-      console.log("Initializing groups:", {
-        collection: currentCollection.name,
-        variables: currentCollection.variables.length,
-        groups: newGroups.size,
-      });
     }
   }, [currentCollection]);
 
