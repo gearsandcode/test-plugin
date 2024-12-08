@@ -1,6 +1,10 @@
 {
   "Colour": {
     "Day": {
+      "background/page": {
+        "$value": "#d926d9",
+        "$type": "COLOR"
+      },
       "background/body": {
         "$value": "#ffffff",
         "$type": "COLOR"
@@ -192,6 +196,10 @@
       }
     },
     "Night": {
+      "background/page": {
+        "$value": "#262626",
+        "$type": "COLOR"
+      },
       "background/body": {
         "$value": "#404040",
         "$type": "COLOR"
@@ -383,6 +391,10 @@
       }
     },
     "Midnight": {
+      "background/page": {
+        "$value": "#262626",
+        "$type": "COLOR"
+      },
       "background/body": {
         "$value": "#14ae5c",
         "$type": "COLOR"
