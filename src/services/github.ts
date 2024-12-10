@@ -1,6 +1,3 @@
-/**
- * @fileoverview GitHub service with consistent configuration interface
- */
 import { z } from "zod";
 import {
   PullRequestSchema,
@@ -11,6 +8,10 @@ import {
   debugValidation,
   type PullRequest,
 } from "../schemas/github";
+
+import type { FileChange, DiffResult, CommitInfo } from "../types";
+import { findJsonDiff, formatJsonDiff } from "../utils";
+import { decodeBase64 } from "../utils";
 
 interface GitHubServiceConfig {
   token: string;
@@ -240,6 +241,221 @@ export class GitHubService {
       return pulls[0] || null;
     } catch (error) {
       console.error("Error finding pull request:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Gets the content of a file from a specific branch
+   */
+  async getFileContent(path: string, branch: string): Promise<string | null> {
+    try {
+      const response = await this.request(
+        `/contents/${path}?ref=${branch}`,
+        { method: "GET" },
+        z.object({
+          content: z.string(),
+          encoding: z.string(),
+        })
+      );
+
+      return Buffer.from(response.content, "base64").toString("utf-8");
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /**
+   * Compare local content with branch content
+   */
+  async getDiff(
+    branchName: string,
+    localContent: string
+  ): Promise<string | null> {
+    try {
+      const branchContent = await this.getFileContent(
+        "variables.json",
+        branchName
+      );
+      if (!branchContent) {
+        return this.createTempDiff("{}", localContent, "Initial variables");
+      }
+
+      if (branchContent === localContent) {
+        return null; // No changes
+      }
+
+      return this.createTempDiff(
+        branchContent,
+        localContent,
+        "Current changes"
+      );
+    } catch (error) {
+      console.error("Error getting diff:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Gets the GitHub compare URL
+   */
+  getCompareUrl(branchName: string, baseBranch = "main"): string {
+    return `https://github.com/${this.config.organization}/${this.config.repository}/compare/${baseBranch}...${branchName}`;
+  }
+
+  private createTempDiff(
+    oldContent: string,
+    newContent: string,
+    description: string
+  ): string {
+    const oldLines = JSON.stringify(JSON.parse(oldContent), null, 2).split(
+      "\n"
+    );
+    const newLines = JSON.stringify(JSON.parse(newContent), null, 2).split(
+      "\n"
+    );
+
+    return [
+      `diff --git a/variables.json b/variables.json`,
+      `--- a/variables.json (${description})`,
+      `+++ b/variables.json (Local changes)`,
+      "@@ -1,1 +1,1 @@",
+      ...oldLines.map((line) => "- " + line),
+      ...newLines.map((line) => "+ " + line),
+    ].join("\n");
+  }
+
+  /**
+   * Gets the latest content from a branch
+   */
+  async getLatestContent(branch: string): Promise<string | null> {
+    try {
+      console.log(`Fetching content for branch: ${branch}`);
+
+      const response = await this.request(
+        `/contents/variables.json?ref=${branch}`,
+        { method: "GET" },
+        z.object({
+          content: z.string(),
+          encoding: z.string(),
+        })
+      );
+
+      return decodeBase64(response.content);
+    } catch (error: any) {
+      if (error.status === 404) {
+        console.warn(`Branch or file not found: ${branch}`);
+        return null;
+      }
+      console.error("Error accessing content:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Compare local content with branch content
+   */
+  async compareWithBranch(
+    branchName: string,
+    localContent: string
+  ): Promise<DiffResult | null> {
+    try {
+      const [branchContent, commitInfo] = await Promise.all([
+        this.getLatestContent(branchName),
+        this.getLatestCommit(branchName),
+      ]);
+
+      if (!branchContent) {
+        const changes = findJsonDiff("{}", localContent);
+        return {
+          path: "variables.json",
+          content: formatJsonDiff(changes),
+          commit: commitInfo || undefined,
+        };
+      }
+
+      const changes = findJsonDiff(branchContent, localContent);
+      return changes.length > 0
+        ? {
+            path: "variables.json",
+            content: formatJsonDiff(changes),
+            commit: commitInfo || undefined,
+          }
+        : null;
+    } catch (error) {
+      console.error("Error comparing with branch:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Gets content of files from the latest commit on a branch
+   */
+  async getBranchContents(
+    branch: string,
+    paths: string[]
+  ): Promise<Map<string, string | null>> {
+    const contents = new Map<string, string | null>();
+
+    try {
+      const branchRef = await this.getBranchRef(branch);
+      if (!branchRef) return contents;
+
+      await Promise.all(
+        paths.map(async (path) => {
+          try {
+            const response = await this.request(
+              `/contents/${path}?ref=${branchRef.object.sha}`,
+              { method: "GET" },
+              z.object({
+                content: z.string(),
+                encoding: z.string(),
+              })
+            );
+            contents.set(
+              path,
+              Buffer.from(response.content, "base64").toString("utf-8")
+            );
+          } catch (error) {
+            contents.set(path, null);
+          }
+        })
+      );
+    } catch (error) {
+      console.error("Error getting branch contents:", error);
+    }
+
+    return contents;
+  }
+
+  async getLatestCommit(branch: string): Promise<CommitInfo | null> {
+    try {
+      const branchRef = await this.getBranchRef(branch);
+      if (!branchRef) return null;
+
+      const response = await this.request(
+        `/commits/${branchRef.object.sha}`,
+        { method: "GET" },
+        z.object({
+          sha: z.string(),
+          commit: z.object({
+            message: z.string(),
+            author: z.object({
+              name: z.string(),
+              date: z.string(),
+            }),
+          }),
+        })
+      );
+
+      return {
+        sha: response.sha.substring(0, 7),
+        message: response.commit.message,
+        author: response.commit.author.name,
+        date: new Date(response.commit.author.date).toLocaleString(),
+      };
+    } catch (error) {
+      console.error("Error getting commit info:", error);
       return null;
     }
   }

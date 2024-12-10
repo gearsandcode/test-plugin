@@ -116,6 +116,10 @@ export type BranchSelectionMode = "existing" | "new";
  * @interface
  */
 interface VariableValue {
+  [x: string]: any;
+  description: string | undefined;
+  name: string;
+  id: any;
   /**
    * The value of the variable.
    * @type {string}
@@ -149,6 +153,7 @@ interface VariableValue {
    * @type {string}
    */
   type: string;
+  modes: Record<string, VariableValue>;
 }
 
 /**
@@ -156,6 +161,7 @@ interface VariableValue {
  * @interface
  */
 export interface Variable {
+  id: string;
   /**
    * Indicates if the variable is hidden from publishing.
    * @type {boolean}
@@ -210,7 +216,12 @@ export interface VariableCollection {
  * Represents a formatted collection of variables.
  * @type {VariableCollection}
  */
-export type FormattedCollection = VariableCollection;
+
+export interface FormattedCollection {
+  name: string;
+  modes?: Record<string, VariableValue>;
+  variables: VariableValue[];
+}
 
 /**
  * Represents the value of a mode in different contexts.
@@ -284,4 +295,22 @@ export interface NestedGroup {
    * @optional
    */
   isOpen?: boolean;
+}
+
+export interface FileChange {
+  path: string;
+  content: string;
+}
+
+export interface CommitInfo {
+  sha: string;
+  message: string;
+  author: string;
+  date: string;
+}
+
+export interface DiffResult {
+  path: string;
+  content: string;
+  commit?: CommitInfo;
 }

@@ -25,3 +25,6 @@ export {
 export { PullRequestForm } from "./PullRequestForm";
 export { VariablesTableView } from "./VariablesTableView";
 export { JSONPreview } from "./JSONPreview";
+export * from "./VariableFlowView/VariableFlowView";
+export { CompareView } from "./CompareView";
+export { DiffTableView } from "./DiffTableView";

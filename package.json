@@ -13,7 +13,9 @@
     "lint": "eslint src --cache"
   },
   "dependencies": {
+    "@dagrejs/dagre": "^1.1.4",
     "@phosphor-icons/react": "^2.1.7",
+    "@xyflow/react": "^12.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
