@@ -28,3 +28,4 @@ export { JSONPreview } from "./JSONPreview";
 export * from "./VariableFlowView/VariableFlowView";
 export { CompareView } from "./CompareView";
 export { DiffTableView } from "./DiffTableView";
+export { ViewLocalChanges } from "./ViewLocalChanges";

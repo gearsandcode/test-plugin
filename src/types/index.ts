@@ -314,3 +314,35 @@ export interface DiffResult {
   content: string;
   commit?: CommitInfo;
 }
+
+export interface ViewState {
+  activeView: string;
+  selectedCollection: string;
+  selectedGroup: string | null;
+}
+
+export interface Style {
+  id: string;
+  name: string;
+  description: string;
+  type: "PAINT" | "TEXT" | "EFFECT";
+  remote: boolean;
+  key: string;
+  hiddenFromPublishing: boolean;
+  paints?: Paint[];
+  fontSize?: number;
+  fontName?: FontName;
+  letterSpacing?: LetterSpacing;
+  lineHeight?: LineHeight;
+  paragraphIndent?: number;
+  paragraphSpacing?: number;
+  textCase?: TextCase;
+  textDecoration?: TextDecoration;
+  effects?: Effect[];
+}
+
+export interface Styles {
+  paint: Style[];
+  text: Style[];
+  effect: Style[];
+}

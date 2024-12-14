@@ -1,4 +1,11 @@
-import type { StoredSettings, PartialCommitData } from "./types";
+import type { StoredSettings, PartialCommitData, ViewState } from "./types";
+
+// Add view state defaults
+const DEFAULT_VIEW_STATE: ViewState = {
+  activeView: "list",
+  selectedCollection: "",
+  selectedGroup: null,
+};
 
 const DEFAULT_COMMIT_DATA: PartialCommitData = {
   branch: "",
@@ -85,5 +92,40 @@ export async function loadSettings(): Promise<StoredSettings> {
   } catch (error) {
     console.error("Error in loadSettings:", error);
     return DEFAULT_SETTINGS;
+  }
+}
+
+export async function saveViewState(state: ViewState): Promise<ViewState> {
+  try {
+    await figma.clientStorage.setAsync("viewState", state);
+    return state;
+  } catch (error) {
+    console.error("Error saving view state:", error);
+    throw error;
+  }
+}
+
+export async function loadViewState(): Promise<ViewState> {
+  try {
+    const state = await figma.clientStorage.getAsync("viewState");
+    return state || DEFAULT_VIEW_STATE;
+  } catch (error) {
+    console.error("Error loading view state:", error);
+    return DEFAULT_VIEW_STATE;
+  }
+}
+
+export async function resetViewState(): Promise<void> {
+  try {
+    // Delete view state from storage
+    await figma.clientStorage.deleteAsync("viewState");
+
+    // Send reset message to UI
+    figma.ui.postMessage({
+      type: "view-state-reset",
+    });
+  } catch (error) {
+    console.error("Error resetting view state:", error);
+    throw error;
   }
 }

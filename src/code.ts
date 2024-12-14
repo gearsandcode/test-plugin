@@ -1,4 +1,10 @@
-import { saveSettings, loadSettings } from "./PluginStore";
+import {
+  saveSettings,
+  loadSettings,
+  resetViewState,
+  loadViewState,
+  saveViewState,
+} from "./PluginStore";
 import { LocalVariable } from "@figma/rest-api-spec";
 
 const pluginDefaultWidth = 500;
@@ -65,6 +71,12 @@ interface ExportData {
         [modeName: string]: ExportModeData;
       }
     | ExportModeData;
+}
+
+interface ViewState {
+  activeView: "list" | "flow";
+  selectedCollection: string;
+  selectedGroup: string | null;
 }
 
 // Restore previous size
@@ -153,9 +165,11 @@ function isHiddenVariable(
 async function getAllFormattedVariables(): Promise<{
   collections: FormattedCollection[];
   exportData: ExportData;
+  viewState?: ViewState;
 }> {
   const collections = await figma.variables.getLocalVariableCollectionsAsync();
   const formattedCollections: FormattedCollection[] = [];
+  const viewState = await figma.clientStorage.getAsync("viewState");
 
   for (const collection of collections) {
     const variables: FormattedVariable[] = [];
@@ -313,7 +327,53 @@ async function getAllFormattedVariables(): Promise<{
 
   return {
     collections: formattedCollections,
-    exportData: exportData,
+    exportData,
+    viewState: viewState || null,
+  };
+}
+
+async function getAllFormattedStyles() {
+  const styles = {
+    paint: await figma.getLocalPaintStylesAsync(),
+    text: await figma.getLocalTextStylesAsync(),
+    effect: await figma.getLocalEffectStylesAsync()
+  };
+
+  return {
+    paint: styles.paint.map(style => ({
+      id: style.id,
+      name: style.name,
+      description: style.description,
+      type: "PAINT",
+      remote: style.remote,
+      key: style.key,
+      paints: style.paints
+    })),
+    text: styles.text.map(style => ({
+      id: style.id,
+      name: style.name,
+      description: style.description,
+      type: "TEXT",
+      remote: style.remote,
+      key: style.key,
+      fontSize: style.fontSize,
+      fontName: style.fontName,
+      letterSpacing: style.letterSpacing,
+      lineHeight: style.lineHeight,
+      paragraphIndent: style.paragraphIndent,
+      paragraphSpacing: style.paragraphSpacing,
+      textCase: style.textCase,
+      textDecoration: style.textDecoration
+    })),
+    effect: styles.effect.map(style => ({
+      id: style.id,
+      name: style.name,
+      description: style.description,
+      type: "EFFECT",
+      remote: style.remote,
+      key: style.key,
+      effects: style.effects
+    }))
   };
 }
 
@@ -321,6 +381,54 @@ async function getAllFormattedVariables(): Promise<{
 initializeSize();
 
 figma.ui.onmessage = async (msg) => {
+  if (msg.type === "save-view-state") {
+    try {
+      await saveViewState(msg.state);
+    } catch (error) {
+      console.error("Error saving view state:", error);
+      figma.notify("Error saving view state", { error: true });
+    }
+  }
+
+  if (msg.type === "load-view-state") {
+    try {
+      const state = await loadViewState();
+      figma.ui.postMessage({
+        type: "view-state-loaded",
+        state,
+      });
+    } catch (error) {
+      console.error("Error loading view state:", error);
+      figma.notify("Error loading view state", { error: true });
+    }
+  }
+
+  if (msg.type === "reset-view-state") {
+    try {
+      await resetViewState();
+      figma.ui.postMessage({
+        type: "view-state-reset",
+      });
+      figma.notify("View states reset successfully");
+    } catch (error) {
+      console.error("Error resetting view state:", error);
+      figma.notify("Error resetting view state", { error: true });
+    }
+  }
+
+  if (msg.type === "get-styles") {
+    try {
+      const styles = await getAllFormattedStyles();
+      figma.ui.postMessage({
+        type: "styles-loaded",
+        styles
+      });
+    } catch (error) {
+      console.error("Error loading styles:", error);
+      figma.notify("Error loading styles", { error: true });
+    }
+  }
+
   if (msg.type === "load-group-states") {
     try {
       const states = await figma.clientStorage.getAsync(msg.key);

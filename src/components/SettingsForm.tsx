@@ -32,6 +32,29 @@ export function SettingsForm({ initialSettings, onSave }: SettingsFormProps) {
     setError("");
   }
 
+  function handleResetViewState() {
+    if (window.confirm("Are you sure you want to reset all view states?")) {
+      parent.postMessage(
+        {
+          pluginMessage: {
+            type: "reset-view-state",
+          },
+        },
+        "*"
+      );
+
+      parent.postMessage(
+        {
+          pluginMessage: {
+            type: "notify",
+            message: "View states reset successfully",
+          },
+        },
+        "*"
+      );
+    }
+  }
+
   function handleClearAllData() {
     if (
       window.confirm(
@@ -128,7 +151,16 @@ export function SettingsForm({ initialSettings, onSave }: SettingsFormProps) {
         />
       </div>
 
-      <div className="border-t border-black/10 dark:border-white/10 pt-4 mt-4">
+      <div className="border-t border-black/10 dark:border-white/10 pt-4 mt-4 space-y-4">
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={handleResetViewState}
+          className="w-full justify-center"
+        >
+          Reset View States
+        </Button>
+
         <Button
           type="button"
           variant="danger"

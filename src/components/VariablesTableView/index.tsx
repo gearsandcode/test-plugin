@@ -1,49 +1,22 @@
-import { ArrowClockwise, CaretRight } from "@phosphor-icons/react";
+import { CaretRight } from "@phosphor-icons/react";
 import type { NestedGroup, Variable, VariableCollection } from "../../types";
 import { useEffect, useMemo, useState } from "react";
 
-import { Alert } from "../Alert";
 import { VariablesTable } from "./components/VariablesTable";
+import { createNestedGroups } from "../../utils";
 
-interface Props {
+interface VariablesTableViewProps {
   variables: VariableCollection[];
-  loading?: boolean;
-  onRefresh: () => void;
+  selectedCollection: string;
+  selectedGroup: string | null;
+  onCollectionChange: (collection: string) => void;
+  onGroupChange: (group: string | null) => void;
+  view: "list" | "flow";
+  onViewChange: (view: "list" | "flow") => void;
 }
 
 function getRootVariables(variables: Variable[]): Variable[] {
   return variables.filter((v) => !v.name.includes("/"));
-}
-
-/**
- * Gets the relevant display path for a variable based on group context
- * @param fullPath - Full variable path
- * @param selectedGroup - Currently selected group path (if any)
- * @returns Resolved display path
- */
-function getRelevantPath(
-  fullPath: string,
-  selectedGroup: string | null
-): string {
-  const parts = fullPath.split("/");
-
-  if (!selectedGroup) {
-    // In "All variables" view, show up to the second-to-last segment
-    return parts.slice(0, -1).join("/");
-  }
-
-  // When a group is selected, show the last segment of that group
-  const groupParts = selectedGroup.split("/");
-  const relevantParts = parts.slice(groupParts.length);
-  return relevantParts[0] || parts[parts.length - 1];
-}
-
-/**
- * Resolves group display name based on context
- */
-function getGroupDisplayName(fullPath: string): string {
-  const parts = fullPath.split("/");
-  return parts[parts.length - 1];
 }
 
 /**
@@ -66,44 +39,6 @@ function resolvePathParts(fullPath: string): {
     displayName,
     groupDisplayName,
   };
-}
-
-function createNestedGroups(variables: Variable[]): Map<string, NestedGroup> {
-  const groups = new Map<string, NestedGroup>();
-
-  variables.forEach((variable) => {
-    if (!variable.name.includes("/")) return;
-
-    const parts = variable.name.split("/");
-    let currentMap = groups;
-    let currentPath = "";
-
-    // Process each part of the path except the last one (which is the variable name)
-    for (let i = 0; i < parts.length - 1; i++) {
-      const part = parts[i];
-      currentPath = currentPath ? `${currentPath}/${part}` : part;
-
-      if (!currentMap.has(part)) {
-        currentMap.set(part, {
-          name: part,
-          fullPath: currentPath,
-          variables: [],
-          children: new Map(),
-          isOpen: true,
-        });
-      }
-
-      // Add variable to the appropriate group level
-      const group = currentMap.get(part)!;
-      if (i === parts.length - 2) {
-        group.variables.push(variable);
-      }
-
-      currentMap = group.children;
-    }
-  });
-
-  return groups;
 }
 
 function SidebarGroup({
@@ -174,24 +109,33 @@ function SidebarGroup({
 
 export function VariablesTableView({
   variables,
-  loading = false,
-  onRefresh,
-}: Props) {
-  const [selectedCollection, setSelectedCollection] = useState<string>("");
-  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
+  selectedCollection,
+  selectedGroup,
+  onCollectionChange,
+  onGroupChange,
+}: VariablesTableViewProps) {
+  // const [selectedCollection, setSelectedCollection] = useState<string>("");
+  // const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [groups, setGroups] = useState<Map<string, NestedGroup>>(new Map());
 
-  // Set initial collection when component mounts
-  useEffect(() => {
-    if (variables.length > 0) {
-      setSelectedCollection(variables[0].name);
-    }
-  }, [variables]); // Only depends on variables array
+  // // Set initial collection when component mounts
+  // useEffect(() => {
+  //   if (variables.length > 0) {
+  //     setSelectedCollection(variables[0].name);
+  //   }
+  // }, [variables]); // Only depends on variables array
 
   const currentCollection = useMemo(
     () => variables.find((v) => v.name === selectedCollection),
     [selectedCollection, variables]
   );
+
+  // Set initial collection when none is selected
+  useEffect(() => {
+    if (variables.length > 0 && !selectedCollection) {
+      onCollectionChange(variables[0].name);
+    }
+  }, [variables, selectedCollection, onCollectionChange]);
 
   // Initialize groups whenever collection changes
   useEffect(() => {
@@ -200,6 +144,12 @@ export function VariablesTableView({
       setGroups(newGroups);
     }
   }, [currentCollection]);
+
+  // Update select handler to use prop
+  const handleCollectionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    onCollectionChange(e.target.value);
+    onGroupChange(null); // Reset group when collection changes
+  };
 
   const groupedVariables = useMemo(() => {
     if (!currentCollection?.variables) return new Map<string, Variable[]>();
@@ -265,24 +215,6 @@ export function VariablesTableView({
     [currentCollection?.variables]
   );
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Alert
-          type="loading"
-          message={
-            <div className="flex items-center gap-2">
-              <div className="animate-spin rounded-full h-3 w-3 border-2 border-stone-300 border-t-stone-600" />
-              <span className="text-xs opacity-80">
-                Getting new variables...
-              </span>
-            </div>
-          }
-        />
-      </div>
-    );
-  }
-
   return (
     <div className="flex h-full bg-figma-bg pb-4">
       {/* Sidebar */}
@@ -290,25 +222,10 @@ export function VariablesTableView({
         <div>
           <div className="flex items-center justify-between mb-2 pt-2">
             <label className="text-xs font-medium">Collection</label>
-            <button
-              onClick={onRefresh}
-              disabled={loading}
-              className="p-1 rounded hover:bg-figma-border/50 text-figma-text-secondary transition-colors"
-              title="Refresh variables"
-            >
-              <ArrowClockwise
-                size={14}
-                className={loading ? "animate-spin" : ""}
-                weight="bold"
-              />
-            </button>
           </div>
           <select
             value={selectedCollection}
-            onChange={(e) => {
-              setSelectedCollection(e.target.value);
-              setSelectedGroup(null);
-            }}
+            onChange={handleCollectionChange}
             className="w-full px-2 py-1.5 text-xs rounded-sm border border-figma-border"
           >
             {variables.map((collection) => (
@@ -323,7 +240,7 @@ export function VariablesTableView({
           <label className="text-xs font-medium block mb-2">Groups</label>
           <div className="space-y-1">
             <button
-              onClick={() => setSelectedGroup(null)}
+              onClick={() => onGroupChange(null)}
               className={`
                 w-full text-left px-2 py-1.5 text-xs rounded-sm
                 hover:bg-figma-border/50
@@ -342,7 +259,7 @@ export function VariablesTableView({
                 key={group.fullPath}
                 group={group}
                 selectedGroup={selectedGroup}
-                onGroupSelect={setSelectedGroup}
+                onGroupSelect={onGroupChange}
                 onToggleGroup={handleToggleGroup}
               />
             ))}
