@@ -107,6 +107,29 @@ function SidebarGroup({
   );
 }
 
+// Add this helper function near the other utility functions at the top
+function getGroupVariables(group: NestedGroup | null): Variable[] {
+  if (!group) return [];
+  return group.variables;
+}
+
+function getModes(collection: any) {
+  if (!collection) return [];
+  // Handle modes as object
+  if (
+    collection.modes &&
+    typeof collection.modes === "object" &&
+    !Array.isArray(collection.modes)
+  ) {
+    return Object.keys(collection.modes);
+  }
+  // Handle modes as array
+  if (Array.isArray(collection.modes)) {
+    return collection.modes;
+  }
+  return [];
+}
+
 export function VariablesTableView({
   variables,
   selectedCollection,
@@ -125,10 +148,10 @@ export function VariablesTableView({
   //   }
   // }, [variables]); // Only depends on variables array
 
-  const currentCollection = useMemo(
-    () => variables.find((v) => v.name === selectedCollection),
-    [selectedCollection, variables]
-  );
+  const currentCollection = useMemo(() => {
+    if (!variables || !selectedCollection) return null;
+    return variables.find((v) => v.name === selectedCollection) || null;
+  }, [selectedCollection, variables]);
 
   // Set initial collection when none is selected
   useEffect(() => {
@@ -140,9 +163,12 @@ export function VariablesTableView({
   // Initialize groups whenever collection changes
   useEffect(() => {
     if (currentCollection?.variables) {
-      const newGroups = createNestedGroups(currentCollection.variables);
-      setGroups(newGroups);
+      setGroups(createNestedGroups(currentCollection.variables));
     }
+  }, [currentCollection]);
+
+  const modes = useMemo(() => {
+    return getModes(currentCollection);
   }, [currentCollection]);
 
   // Update select handler to use prop
@@ -194,26 +220,24 @@ export function VariablesTableView({
   };
 
   const handleToggleGroup = (path: string) => {
-    setGroups((prevGroups) => {
-      const newGroups = new Map(prevGroups);
-      const group = findGroupByPath(path);
-      if (group) {
-        group.isOpen = !group.isOpen;
-      }
-      return newGroups;
+    const newGroups = new Map();
+    groups.forEach((value, key) => {
+      newGroups.set(key, value);
     });
+
+    const group = findGroupByPath(path, newGroups);
+    if (group) {
+      group.isOpen = !group.isOpen;
+      setGroups(newGroups);
+    }
   };
 
   // Get variables for selected group
   const selectedGroupVariables = useMemo(() => {
     if (!selectedGroup) return [];
-    return findGroupByPath(selectedGroup)?.variables || [];
+    const group = findGroupByPath(selectedGroup, groups);
+    return getGroupVariables(group);
   }, [selectedGroup, groups]);
-
-  const totalVariablesCount = useMemo(
-    () => currentCollection?.variables.length || 0,
-    [currentCollection?.variables]
-  );
 
   return (
     <div className="flex h-full bg-figma-bg pb-4">
@@ -276,6 +300,7 @@ export function VariablesTableView({
             groupedVariables={groupedVariables}
             rootVariables={rootVariables}
             selectedGroupVariables={selectedGroupVariables}
+            modes={modes}
           />
         )}
       </div>

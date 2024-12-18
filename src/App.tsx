@@ -44,79 +44,48 @@ export function App() {
       const msg = event.data.pluginMessage;
       if (!msg) return;
 
+      console.log("Received message:", msg.type, msg); // Debug logging
+
       switch (msg.type) {
         case "settings-loaded":
           setSettings(msg.settings);
           setLoading(false);
-          // After settings are loaded, load view state
-          parent.postMessage(
-            { pluginMessage: { type: "load-view-state" } },
-            "*"
-          );
-          break;
-
-        case "view-state-reset": {
-          // Reset all view states
-          setView("list");
-          setSelectedCollection(variables.length > 0 ? variables[0].name : "");
-          setSelectedGroup(null);
-          setGroups(new Map()); // Reset groups expansion state
-
-          // Force re-initialization of groups if needed
-          if (variables.length > 0) {
-            const firstCollection = variables.find(
-              (v) => v.name === variables[0].name
+          // After settings load, request variables and styles
+          if (msg.settings?.token) {
+            parent.postMessage(
+              { pluginMessage: { type: "get-variables" } },
+              "*"
             );
-            if (firstCollection?.variables) {
-              setGroups(createNestedGroups(firstCollection.variables));
-            }
+            parent.postMessage({ pluginMessage: { type: "get-styles" } }, "*");
           }
           break;
-        }
 
         case "variables-loaded": {
-          setVariables(msg.variables);
+          setVariables(msg.variables || []);
           setExportData(msg.exportData);
           setVariablesLoading(false);
-
-          // Load view state after variables are loaded
-          parent.postMessage(
-            { pluginMessage: { type: "load-view-state" } },
-            "*"
-          );
           break;
         }
 
-        case "view-state-loaded": {
-          if (msg.state) {
-            setView(msg.state.activeView || "list");
-            // Only set collection if it exists in current variables
-            if (
-              variables.some((v) => v.name === msg.state.selectedCollection)
-            ) {
-              setSelectedCollection(msg.state.selectedCollection);
-              setSelectedGroup(msg.state.selectedGroup);
-            } else if (variables.length > 0) {
-              // Fallback to first collection if saved one doesn't exist
-              setSelectedCollection(variables[0].name);
-              setSelectedGroup(null);
+        case "styles-loaded": {
+          setStyles(
+            msg.styles || {
+              paint: [],
+              text: [],
+              effect: [],
             }
-          }
-          break;
-        }
-
-        case "styles-loaded":
-          setStyles(msg.styles);
+          );
           setStylesLoading(false);
           break;
+        }
       }
     }
 
     window.addEventListener("message", handleMessage);
-    settingsManager.loadSettings();
+    settingsManager.loadSettings(); // Initiate settings load
 
     return () => window.removeEventListener("message", handleMessage);
-  }, [variables]);
+  }, []); // Empty deps since this only runs once
 
   // Save view state when it changes
   useEffect(() => {
@@ -180,6 +149,16 @@ export function App() {
       "*"
     );
   }, []);
+
+  // Helper function to find collection
+  function findCollection(collections: any[], name: string) {
+    for (let i = 0; i < collections.length; i++) {
+      if (collections[i].name === name) {
+        return collections[i];
+      }
+    }
+    return null;
+  }
 
   // Update view state handlers
   const handleViewChange = (newView: "list" | "flow") => {
