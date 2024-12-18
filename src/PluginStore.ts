@@ -1,51 +1,66 @@
-export interface CommitData {
-  branch: string;
-  message: string;
-  filename: string;
-  file: string;
-}
+import type { StoredSettings, PartialCommitData, ViewState } from "./types";
 
-export type PartialCommitData = Partial<CommitData>;
+// Add view state defaults
+const DEFAULT_VIEW_STATE: ViewState = {
+  activeView: "list",
+  selectedCollection: "",
+  selectedGroup: null,
+};
 
-export interface StoredSettings {
-  token: string;
-  organization: string;
-  repository: string;
-  label: string;
-  commitData?: PartialCommitData;
-}
+const DEFAULT_COMMIT_DATA: PartialCommitData = {
+  branch: "",
+  baseBranch: "main",
+  message: "",
+  filename: "variables.json",
+  content: "",
+};
 
 const DEFAULT_SETTINGS: StoredSettings = {
   token: "",
-  organization: "gearsandcode",
-  repository: "docs",
-  label: "figma-plugin",
-  commitData: {
-    branch: "",
-    message: "",
-    filename: "test.md",
-    file: "",
-  },
+  organization: "",
+  repository: "",
+  label: "",
+  commitData: DEFAULT_COMMIT_DATA,
 };
 
-export async function saveSettings(settings: Partial<StoredSettings>) {
+export async function saveSettings(
+  newSettings: Partial<StoredSettings>
+): Promise<StoredSettings> {
   try {
     const currentSettings = await loadSettings();
 
-    // Deep merge the settings
-    const newSettings: StoredSettings = {
-      ...currentSettings,
-      ...settings,
-      commitData: settings.commitData
-        ? {
-            ...(currentSettings.commitData || {}),
-            ...settings.commitData,
-          }
-        : currentSettings.commitData,
+    // Merge the new settings with current settings
+    const mergedSettings: StoredSettings = {
+      token: newSettings.token || currentSettings.token,
+      organization: newSettings.organization || currentSettings.organization,
+      repository: newSettings.repository || currentSettings.repository,
+      label: newSettings.label || currentSettings.label,
+      commitData: {
+        branch:
+          newSettings.commitData?.branch ||
+          currentSettings.commitData?.branch ||
+          DEFAULT_COMMIT_DATA.branch,
+        baseBranch:
+          newSettings.commitData?.baseBranch ||
+          currentSettings.commitData?.baseBranch ||
+          DEFAULT_COMMIT_DATA.baseBranch,
+        message:
+          newSettings.commitData?.message ||
+          currentSettings.commitData?.message ||
+          DEFAULT_COMMIT_DATA.message,
+        filename:
+          newSettings.commitData?.filename ||
+          currentSettings.commitData?.filename ||
+          DEFAULT_COMMIT_DATA.filename,
+        content:
+          newSettings.commitData?.content ||
+          currentSettings.commitData?.content ||
+          DEFAULT_COMMIT_DATA.content,
+      },
     };
 
-    await figma.clientStorage.setAsync("github-settings", newSettings);
-    return newSettings;
+    await figma.clientStorage.setAsync("github-settings", mergedSettings);
+    return mergedSettings;
   } catch (error) {
     console.error("Error in saveSettings:", error);
     throw error;
@@ -59,17 +74,58 @@ export async function loadSettings(): Promise<StoredSettings> {
       return DEFAULT_SETTINGS;
     }
 
-    // Ensure commitData exists and merge with defaults
+    // Ensure all fields exist with proper defaults
     return {
-      ...DEFAULT_SETTINGS,
-      ...settings,
+      token: settings.token || DEFAULT_SETTINGS.token,
+      organization: settings.organization || DEFAULT_SETTINGS.organization,
+      repository: settings.repository || DEFAULT_SETTINGS.repository,
+      label: settings.label || DEFAULT_SETTINGS.label,
       commitData: {
-        ...DEFAULT_SETTINGS.commitData,
-        ...(settings.commitData || {}),
+        branch: settings.commitData?.branch || DEFAULT_COMMIT_DATA.branch,
+        baseBranch:
+          settings.commitData?.baseBranch || DEFAULT_COMMIT_DATA.baseBranch,
+        message: settings.commitData?.message || DEFAULT_COMMIT_DATA.message,
+        filename: settings.commitData?.filename || DEFAULT_COMMIT_DATA.filename,
+        content: settings.commitData?.content || DEFAULT_COMMIT_DATA.content,
       },
     };
   } catch (error) {
     console.error("Error in loadSettings:", error);
+    return DEFAULT_SETTINGS;
+  }
+}
+
+export async function saveViewState(state: ViewState): Promise<ViewState> {
+  try {
+    await figma.clientStorage.setAsync("viewState", state);
+    return state;
+  } catch (error) {
+    console.error("Error saving view state:", error);
+    throw error;
+  }
+}
+
+export async function loadViewState(): Promise<ViewState> {
+  try {
+    const state = await figma.clientStorage.getAsync("viewState");
+    return state || DEFAULT_VIEW_STATE;
+  } catch (error) {
+    console.error("Error loading view state:", error);
+    return DEFAULT_VIEW_STATE;
+  }
+}
+
+export async function resetViewState(): Promise<void> {
+  try {
+    // Delete view state from storage
+    await figma.clientStorage.deleteAsync("viewState");
+
+    // Send reset message to UI
+    figma.ui.postMessage({
+      type: "view-state-reset",
+    });
+  } catch (error) {
+    console.error("Error resetting view state:", error);
     throw error;
   }
 }

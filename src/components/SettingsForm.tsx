@@ -1,15 +1,10 @@
-import React, { useState, FormEvent, ChangeEvent, memo } from "react";
+import React, { useState } from "react";
+import { Input, Button, Alert } from "./";
+import type { StoredSettings } from "../types";
 
-interface Settings {
-  token: string;
-  organization: string;
-  repository: string;
-  label: string;
-}
-
-interface Props {
-  initialSettings: Settings | null;
-  onSave: (settings: Settings) => void;
+interface SettingsFormProps {
+  initialSettings: StoredSettings | null;
+  onSave: (settings: Partial<StoredSettings>) => Promise<void>;
 }
 
 const DEFAULT_VALUES = {
@@ -18,193 +13,174 @@ const DEFAULT_VALUES = {
   label: "figma-plugin",
 };
 
-const FormInput = memo(
-  ({
-    label,
-    name,
-    value,
-    type = "text",
-    onChange,
-  }: {
-    label: string;
-    name: string;
-    value: string;
-    type?: string;
-    onChange: (e: ChangeEvent<HTMLInputElement>) => void;
-  }) => (
-    <div className="space-y-1">
-      <label className="text-xs">{label}</label>
-      <input
-        type={type}
-        name={name}
-        className="w-full px-2 py-1.5 border rounded-sm text-sm
-          hover:border-black/30 focus:border-blue-500 focus:outline-none transition-colors"
-        value={value}
-        onChange={onChange}
-        required
-      />
-    </div>
-  )
-);
-
-FormInput.displayName = "FormInput";
-
-const SettingsForm: React.FC<Props> = ({ initialSettings, onSave }) => {
-  const [formData, setFormData] = useState<Settings>({
+/**
+ * Settings form component with complete data clearing functionality
+ */
+export function SettingsForm({ initialSettings, onSave }: SettingsFormProps) {
+  const [formData, setFormData] = useState<StoredSettings>({
     token: initialSettings?.token || "",
     organization: initialSettings?.organization || DEFAULT_VALUES.organization,
     repository: initialSettings?.repository || DEFAULT_VALUES.repository,
     label: initialSettings?.label || DEFAULT_VALUES.label,
   });
+
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string>("");
 
-  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
+  function handleChange(key: keyof StoredSettings, value: string) {
+    setFormData((prev) => ({ ...prev, [key]: value }));
+    setError("");
+  }
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-
-    parent.postMessage(
-      {
-        pluginMessage: {
-          type: "save-settings",
-          settings: formData,
-        },
-      },
-      "*"
-    );
-
-    onSave(formData);
-    setLoading(false);
-  };
-
-  const handleClear = () => {
-    if (window.confirm("Are you sure you want to clear all settings?")) {
-      const emptySettings = {
-        token: "",
-        organization: "",
-        repository: "",
-        label: "",
-      };
-
-      setFormData(emptySettings);
-
+  function handleResetViewState() {
+    if (window.confirm("Are you sure you want to reset all view states?")) {
       parent.postMessage(
         {
           pluginMessage: {
-            type: "save-settings",
-            settings: emptySettings,
+            type: "reset-view-state",
           },
         },
         "*"
       );
 
-      onSave(emptySettings);
+      parent.postMessage(
+        {
+          pluginMessage: {
+            type: "notify",
+            message: "View states reset successfully",
+          },
+        },
+        "*"
+      );
     }
-  };
+  }
 
-  const handleUseDefaults = () => {
-    const defaultSettings = {
-      ...formData,
-      organization: DEFAULT_VALUES.organization,
-      repository: DEFAULT_VALUES.repository,
-      label: DEFAULT_VALUES.label,
-    };
-    setFormData(defaultSettings);
-  };
+  function handleClearAllData() {
+    if (
+      window.confirm(
+        "Are you sure you want to clear all settings and stored data? This action cannot be undone."
+      )
+    ) {
+      parent.postMessage(
+        {
+          pluginMessage: {
+            type: "clear-all-data",
+          },
+        },
+        "*"
+      );
+
+      // Reset form
+      setFormData({
+        token: "",
+        organization: "",
+        repository: "",
+        label: "",
+      });
+
+      // Notify user
+      parent.postMessage(
+        {
+          pluginMessage: {
+            type: "notify",
+            message: "All settings and stored data cleared",
+          },
+        },
+        "*"
+      );
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+
+    try {
+      await onSave(formData);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save settings");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
-    <div className="p-4">
+    <form onSubmit={handleSubmit} className="p-4 space-y-4">
       <div>
-        <h1 className="text-base font-medium">GitHub Settings</h1>
-        <p className="text-xs opacity-50 mt-1">
+        <div className="flex items-center gap-2 mb-1">
+          <h2 className="text-base font-medium">GitHub Settings</h2>
+        </div>
+        <p className="text-sm opacity-50">
           Configure your GitHub repository settings
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-        <FormInput
-          label="PERSONAL ACCESS TOKEN"
-          name="token"
-          type="password"
-          value={formData.token}
-          onChange={handleChange}
+      {error && (
+        <Alert type="error" message={error} onDismiss={() => setError("")} />
+      )}
+
+      <Input
+        label="Personal access token"
+        type="password"
+        value={formData.token}
+        onChange={(e) => handleChange("token", e.target.value)}
+        required
+      />
+
+      <div className="space-y-4">
+        <Input
+          label="Organization/User"
+          value={formData.organization}
+          onChange={(e) => handleChange("organization", e.target.value)}
+          required
         />
-        <div className="space-y-4">
-          <FormInput
-            label="ORGANIZATION/USER"
-            name="organization"
-            value={formData.organization}
-            onChange={handleChange}
-          />
-          <FormInput
-            label="REPOSITORY"
-            name="repository"
-            value={formData.repository}
-            onChange={handleChange}
-          />
-          <FormInput
-            label="DEFAULT LABEL"
-            name="label"
-            value={formData.label}
-            onChange={handleChange}
-          />
 
-          <button
-            type="button"
-            onClick={handleUseDefaults}
-            className="
-              text-sm
-              text-blue-500 hover:text-blue-600
-              flex items-center
-              transition-colors
-            "
-          >
-            Use default values
-          </button>
-        </div>
+        <Input
+          label="Repository"
+          value={formData.repository}
+          onChange={(e) => handleChange("repository", e.target.value)}
+          required
+        />
 
-        <div className="flex space-x-2 pt-2">
-          <button
-            type="submit"
-            disabled={loading}
-            className={`
-            flex-1 py-1.5 px-3
-            rounded-sm text-sm text-white
-            transition-colors
-            ${
-              loading
-                ? "bg-blue-400 cursor-not-allowed"
-                : "bg-blue-500 hover:bg-blue-600 active:bg-blue-700"
-            }
-          `}
-          >
-            {loading ? "Saving..." : "Save Settings"}
-          </button>
+        <Input
+          label="Default label"
+          value={formData.label}
+          onChange={(e) => handleChange("label", e.target.value)}
+          required
+        />
+      </div>
 
-          <button
-            type="button"
-            onClick={handleClear}
-            className="
-            py-1.5 px-3
-            rounded-sm text-sm
-            text-red-500 hover:text-red-600 active:text-red-700
-            border border-red-500 hover:border-red-600 active:border-red-700
-            transition-colors
-          "
-          >
-            Clear Settings
-          </button>
-        </div>
-      </form>
-    </div>
+      <div className="border-t border-black/10 dark:border-white/10 pt-4 mt-4 space-y-4">
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={handleResetViewState}
+          className="w-full justify-center"
+        >
+          Reset View States
+        </Button>
+
+        <Button
+          type="button"
+          variant="danger"
+          onClick={handleClearAllData}
+          className="w-full justify-center"
+        >
+          Clear All Settings and Data
+        </Button>
+      </div>
+
+      <div className="flex space-x-2 pt-2">
+        <Button
+          type="submit"
+          loading={loading}
+          variant="primary"
+          className="flex-1"
+        >
+          Save Settings
+        </Button>
+      </div>
+    </form>
   );
-};
-
-export default SettingsForm;
+}
